@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ChevronDown, Plus, Sparkles, User, LogOut } from 'lucide-react';
 import { useSessionStore } from '@/store/session';
 import { useBrandStore } from '@/store/brands';
+import { GenerateModal } from '@/components/GenerateModal';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -24,6 +25,7 @@ import { SidebarTrigger } from '@/components/ui/sidebar';
 
 export function Header() {
   const [isGenerateOpen, setIsGenerateOpen] = useState(false);
+  const [showGenerateModal, setShowGenerateModal] = useState(false);
   const user = useSessionStore(state => state.user);
   const logout = useSessionStore(state => state.logout);
   const { brands, activeBrand, setActiveBrand } = useBrandStore();
@@ -125,6 +127,11 @@ export function Header() {
           </DropdownMenu>
         </div>
       </div>
+      
+      <GenerateModal 
+        open={showGenerateModal} 
+        onOpenChange={setShowGenerateModal} 
+      />
     </header>
   );
 }

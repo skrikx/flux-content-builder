@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Key, TestTube, Shield, Bell, Palette, Globe } from 'lucide-react';
+import { Key, TestTube, Shield, Bell, Palette, Globe, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,14 +9,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { useProviderStore } from '@/store/providers';
+import { searchProviders } from '@/providers/search';
+import { llmProviders } from '@/providers/llm';
+import { imageProviders } from '@/providers/image';
 
 export default function Settings() {
   const { toast } = useToast();
-  const [apiKeys, setApiKeys] = useState({
-    openai: '',
-    anthropic: '',
-    stability: '',
-  });
+  const { config, updateKeys, updateToggles, setTestResult, setUseProxy } = useProviderStore();
+  const [isTestingProvider, setIsTestingProvider] = useState<string | null>(null);
 
   const [notifications, setNotifications] = useState({
     contentGenerated: true,
@@ -25,30 +26,78 @@ export default function Settings() {
     systemUpdates: true,
   });
 
-  const [features, setFeatures] = useState({
-    betaFeatures: false,
-    advancedAnalytics: true,
-    autoScheduling: true,
-    aiSuggestions: true,
-  });
-
-  const handleApiKeyChange = (provider: string, value: string) => {
-    setApiKeys(prev => ({ ...prev, [provider]: value }));
+  const handleApiKeyChange = (key: string, value: string) => {
+    updateKeys({ [key]: value });
   };
 
-  const testConnection = async (provider: string) => {
+  const testProvider = async (providerKey: string, providerName: string) => {
+    setIsTestingProvider(providerKey);
+    
     toast({
       title: 'Testing connection...',
-      description: `Testing ${provider} API connection.`,
+      description: `Testing ${providerName} API connection.`,
     });
 
-    // Simulate API test
-    setTimeout(() => {
+    try {
+      let provider;
+      
+      // Map provider keys to actual providers
+      switch (providerKey) {
+        case 'openrouter':
+          provider = llmProviders.openrouter;
+          break;
+        case 'hf':
+          provider = llmProviders.huggingface;
+          break;
+        case 'tavily':
+          provider = searchProviders.tavily;
+          break;
+        case 'unsplash':
+          provider = imageProviders.unsplash;
+          break;
+        default:
+          throw new Error('Provider not implemented');
+      }
+
+      const result = await provider.test(config);
+      setTestResult(providerKey, result);
+
       toast({
-        title: 'Connection successful',
-        description: `${provider} API is working correctly.`,
+        title: result.ok ? 'Connection successful' : 'Connection failed',
+        description: result.message,
+        variant: result.ok ? 'default' : 'destructive',
       });
-    }, 2000);
+    } catch (error) {
+      const result = { ok: false, message: 'Test failed', at: new Date().toISOString() };
+      setTestResult(providerKey, result);
+      
+      toast({
+        title: 'Connection failed',
+        description: 'Unable to test provider connection.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsTestingProvider(null);
+    }
+  };
+
+  const getProviderStatus = (providerKey: string) => {
+    const hasKey = !!config.keys[providerKey as keyof typeof config.keys];
+    const testResult = config.lastTest?.[providerKey];
+    
+    if (!hasKey) {
+      return { status: 'warning', label: 'No API Key', icon: AlertCircle };
+    }
+    
+    if (!testResult) {
+      return { status: 'secondary', label: 'Not Tested', icon: AlertCircle };
+    }
+    
+    if (testResult.ok) {
+      return { status: 'success', label: 'Connected', icon: CheckCircle };
+    }
+    
+    return { status: 'destructive', label: 'Failed', icon: XCircle };
   };
 
   const saveSettings = () => {
@@ -97,110 +146,185 @@ export default function Settings() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* OpenAI */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded bg-gradient-to-r from-green-500 to-green-600 flex items-center justify-center">
-                      <span className="text-white text-xs font-bold">AI</span>
-                    </div>
-                    <div>
-                      <Label className="font-medium">OpenAI</Label>
-                      <p className="text-sm text-muted-foreground">GPT models for text generation</p>
-                    </div>
-                  </div>
-                  <Badge variant="outline" className="bg-success/10 text-success border-success/20">
-                    Connected
-                  </Badge>
+              {/* Use Proxy Toggle */}
+              <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/50">
+                <div>
+                  <Label className="font-medium">Use Proxy Server</Label>
+                  <p className="text-sm text-muted-foreground">Route requests through proxy to avoid CORS issues</p>
                 </div>
-                <div className="flex gap-2">
-                  <Input
-                    type="password"
-                    placeholder="sk-..."
-                    value={apiKeys.openai}
-                    onChange={(e) => handleApiKeyChange('openai', e.target.value)}
-                    className="flex-1"
-                  />
-                  <Button
-                    variant="outline"
-                    onClick={() => testConnection('OpenAI')}
-                    disabled
-                  >
-                    <TestTube className="w-4 h-4 mr-2" />
-                    Test
-                  </Button>
-                </div>
+                <Switch
+                  checked={config.useProxy}
+                  onCheckedChange={setUseProxy}
+                />
               </div>
 
-              {/* Anthropic */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded bg-gradient-to-r from-orange-500 to-red-500 flex items-center justify-center">
-                      <span className="text-white text-xs font-bold">C</span>
+              {/* OpenRouter */}
+              {(() => {
+                const status = getProviderStatus('openrouter');
+                const StatusIcon = status.icon;
+                return (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
+                          <span className="text-white text-xs font-bold">OR</span>
+                        </div>
+                        <div>
+                          <Label className="font-medium">OpenRouter</Label>
+                          <p className="text-sm text-muted-foreground">Access to multiple LLM models</p>
+                        </div>
+                      </div>
+                      <Badge variant={status.status as any} className="flex items-center gap-1">
+                        <StatusIcon className="w-3 h-3" />
+                        {status.label}
+                      </Badge>
                     </div>
-                    <div>
-                      <Label className="font-medium">Anthropic Claude</Label>
-                      <p className="text-sm text-muted-foreground">Advanced reasoning and analysis</p>
+                    <div className="flex gap-2">
+                      <Input
+                        type="password"
+                        placeholder="sk-or-..."
+                        value={config.keys.openrouter || ''}
+                        onChange={(e) => handleApiKeyChange('openrouter', e.target.value)}
+                        className="flex-1"
+                      />
+                      <Button
+                        variant="outline"
+                        onClick={() => testProvider('openrouter', 'OpenRouter')}
+                        disabled={isTestingProvider === 'openrouter'}
+                      >
+                        <TestTube className="w-4 h-4 mr-2" />
+                        Test
+                      </Button>
                     </div>
                   </div>
-                  <Badge variant="outline">
-                    Not Connected
-                  </Badge>
-                </div>
-                <div className="flex gap-2">
-                  <Input
-                    type="password"
-                    placeholder="sk-ant-..."
-                    value={apiKeys.anthropic}
-                    onChange={(e) => handleApiKeyChange('anthropic', e.target.value)}
-                    className="flex-1"
-                  />
-                  <Button
-                    variant="outline"
-                    onClick={() => testConnection('Anthropic')}
-                    disabled
-                  >
-                    <TestTube className="w-4 h-4 mr-2" />
-                    Test
-                  </Button>
-                </div>
-              </div>
+                );
+              })()}
 
-              {/* Stability AI */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded bg-gradient-to-r from-purple-500 to-blue-500 flex items-center justify-center">
-                      <span className="text-white text-xs font-bold">S</span>
+              {/* HuggingFace */}
+              {(() => {
+                const status = getProviderStatus('hf');
+                const StatusIcon = status.icon;
+                return (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded bg-gradient-to-r from-yellow-500 to-orange-500 flex items-center justify-center">
+                          <span className="text-white text-xs font-bold">HF</span>
+                        </div>
+                        <div>
+                          <Label className="font-medium">HuggingFace</Label>
+                          <p className="text-sm text-muted-foreground">Free LLM and image generation</p>
+                        </div>
+                      </div>
+                      <Badge variant={status.status as any} className="flex items-center gap-1">
+                        <StatusIcon className="w-3 h-3" />
+                        {status.label}
+                      </Badge>
                     </div>
-                    <div>
-                      <Label className="font-medium">Stability AI</Label>
-                      <p className="text-sm text-muted-foreground">Image generation and editing</p>
+                    <div className="flex gap-2">
+                      <Input
+                        type="password"
+                        placeholder="hf_..."
+                        value={config.keys.hf || ''}
+                        onChange={(e) => handleApiKeyChange('hf', e.target.value)}
+                        className="flex-1"
+                      />
+                      <Button
+                        variant="outline"
+                        onClick={() => testProvider('hf', 'HuggingFace')}
+                        disabled={isTestingProvider === 'hf'}
+                      >
+                        <TestTube className="w-4 h-4 mr-2" />
+                        Test
+                      </Button>
                     </div>
                   </div>
-                  <Badge variant="outline">
-                    Not Connected
-                  </Badge>
-                </div>
-                <div className="flex gap-2">
-                  <Input
-                    type="password"
-                    placeholder="sk-..."
-                    value={apiKeys.stability}
-                    onChange={(e) => handleApiKeyChange('stability', e.target.value)}
-                    className="flex-1"
-                  />
-                  <Button
-                    variant="outline"
-                    onClick={() => testConnection('Stability AI')}
-                    disabled
-                  >
-                    <TestTube className="w-4 h-4 mr-2" />
-                    Test
-                  </Button>
-                </div>
-              </div>
+                );
+              })()}
+
+              {/* Tavily Search */}
+              {(() => {
+                const status = getProviderStatus('tavily');
+                const StatusIcon = status.icon;
+                return (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded bg-gradient-to-r from-green-500 to-teal-500 flex items-center justify-center">
+                          <span className="text-white text-xs font-bold">T</span>
+                        </div>
+                        <div>
+                          <Label className="font-medium">Tavily Search</Label>
+                          <p className="text-sm text-muted-foreground">AI-powered web search</p>
+                        </div>
+                      </div>
+                      <Badge variant={status.status as any} className="flex items-center gap-1">
+                        <StatusIcon className="w-3 h-3" />
+                        {status.label}
+                      </Badge>
+                    </div>
+                    <div className="flex gap-2">
+                      <Input
+                        type="password"
+                        placeholder="tvly-..."
+                        value={config.keys.tavily || ''}
+                        onChange={(e) => handleApiKeyChange('tavily', e.target.value)}
+                        className="flex-1"
+                      />
+                      <Button
+                        variant="outline"
+                        onClick={() => testProvider('tavily', 'Tavily')}
+                        disabled={isTestingProvider === 'tavily'}
+                      >
+                        <TestTube className="w-4 h-4 mr-2" />
+                        Test
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Unsplash */}
+              {(() => {
+                const status = getProviderStatus('unsplash');
+                const StatusIcon = status.icon;
+                return (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded bg-gradient-to-r from-gray-600 to-gray-800 flex items-center justify-center">
+                          <span className="text-white text-xs font-bold">U</span>
+                        </div>
+                        <div>
+                          <Label className="font-medium">Unsplash</Label>
+                          <p className="text-sm text-muted-foreground">High-quality stock photos</p>
+                        </div>
+                      </div>
+                      <Badge variant={status.status as any} className="flex items-center gap-1">
+                        <StatusIcon className="w-3 h-3" />
+                        {status.label}
+                      </Badge>
+                    </div>
+                    <div className="flex gap-2">
+                      <Input
+                        type="password"
+                        placeholder="Client-ID..."
+                        value={config.keys.unsplash || ''}
+                        onChange={(e) => handleApiKeyChange('unsplash', e.target.value)}
+                        className="flex-1"
+                      />
+                      <Button
+                        variant="outline"
+                        onClick={() => testProvider('unsplash', 'Unsplash')}
+                        disabled={isTestingProvider === 'unsplash'}
+                      >
+                        <TestTube className="w-4 h-4 mr-2" />
+                        Test
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })()}
             </CardContent>
           </Card>
         </TabsContent>
@@ -282,26 +406,13 @@ export default function Settings() {
             <CardContent className="space-y-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <Label className="font-medium">Beta Features</Label>
-                  <p className="text-sm text-muted-foreground">Access to experimental features before general release</p>
+                  <Label className="font-medium">Use Premium Providers</Label>
+                  <p className="text-sm text-muted-foreground">Prefer paid providers when available for better quality</p>
                 </div>
                 <Switch
-                  checked={features.betaFeatures}
+                  checked={config.toggles.usePremium}
                   onCheckedChange={(checked) => 
-                    setFeatures(prev => ({ ...prev, betaFeatures: checked }))
-                  }
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label className="font-medium">Advanced Analytics</Label>
-                  <p className="text-sm text-muted-foreground">Detailed performance metrics and insights</p>
-                </div>
-                <Switch
-                  checked={features.advancedAnalytics}
-                  onCheckedChange={(checked) => 
-                    setFeatures(prev => ({ ...prev, advancedAnalytics: checked }))
+                    updateToggles({ usePremium: checked })
                   }
                 />
               </div>
@@ -312,22 +423,9 @@ export default function Settings() {
                   <p className="text-sm text-muted-foreground">Automatically schedule content at optimal times</p>
                 </div>
                 <Switch
-                  checked={features.autoScheduling}
+                  checked={config.toggles.autoSchedule}
                   onCheckedChange={(checked) => 
-                    setFeatures(prev => ({ ...prev, autoScheduling: checked }))
-                  }
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label className="font-medium">AI Suggestions</Label>
-                  <p className="text-sm text-muted-foreground">Get AI-powered suggestions for content improvement</p>
-                </div>
-                <Switch
-                  checked={features.aiSuggestions}
-                  onCheckedChange={(checked) => 
-                    setFeatures(prev => ({ ...prev, aiSuggestions: checked }))
+                    updateToggles({ autoSchedule: checked })
                   }
                 />
               </div>
