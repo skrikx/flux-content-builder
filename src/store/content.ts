@@ -42,7 +42,7 @@ const mockContent: ContentItem[] = [
       estimatedReadTime: 5,
       hashtags: ['#AI', '#Business', '#Innovation'],
     },
-    status: 'published',
+    status: 'approved',
     createdAt: new Date('2024-08-11'),
   },
 ];
@@ -64,12 +64,6 @@ export const useContentStore = create<ContentState>()(
         
         set(state => ({
           ideas: [...state.ideas, newIdea],
-        }));
-      },
-
-      addItem: (item: ContentItem) => {
-        set(state => ({
-          items: [...state.items, item],
         }));
       },
 
@@ -111,9 +105,9 @@ export const useContentStore = create<ContentState>()(
           id: `queue-${Date.now()}`,
           contentId,
           brandId: 'brand-1', // Get from content
-      scheduledAt: date,
-      platform: platform as 'IG' | 'TIKTOK' | 'YT' | 'X' | 'BLOG',
-      status: 'SCHEDULED',
+          scheduledDate: date,
+          platform,
+          status: 'scheduled',
         };
         
         set(state => ({
