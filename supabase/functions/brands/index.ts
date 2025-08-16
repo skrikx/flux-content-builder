@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
+import { extractToken, supabaseAuthed, getUserFromToken } from "../_auth_util.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -13,21 +14,8 @@ serve(async (req) => {
   }
 
   try {
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      {
-        global: {
-          headers: { Authorization: req.headers.get('Authorization')! },
-        },
-      }
-    )
-
-    // Get user from JWT
-    const {
-      data: { user },
-      error: authError
-    } = await supabaseClient.auth.getUser()
+    const token = extractToken(req);
+    const { data: { user }, error: authError } = await getUserFromToken(token);
     
     console.log("brands() user:", user?.id, "auth error:", authError);
     console.log("brands() request headers:", req.headers.get('Authorization'));
@@ -39,6 +27,8 @@ serve(async (req) => {
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
+
+    const supabaseClient = supabaseAuthed(token);
 
     if (req.method === 'POST') {
       const body = await req.json();

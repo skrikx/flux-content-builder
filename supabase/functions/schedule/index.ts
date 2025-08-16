@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
+import { extractToken, supabaseAuthed, getUserFromToken } from "../_auth_util.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -12,19 +13,8 @@ serve(async (req) => {
   }
 
   try {
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      {
-        global: {
-          headers: { Authorization: req.headers.get('Authorization')! },
-        },
-      }
-    )
-
-    const {
-      data: { user },
-    } = await supabaseClient.auth.getUser()
+    const token = extractToken(req);
+    const { data: { user } } = await getUserFromToken(token);
 
     if (!user) {
       return new Response(
@@ -32,6 +22,8 @@ serve(async (req) => {
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
+
+    const supabaseClient = supabaseAuthed(token);
 
     if (req.method === 'POST') {
       const { content_id, platform, publish_time, meta } = await req.json()
