@@ -14,7 +14,148 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      brands: {
+        Row: {
+          assets: Json | null
+          created_at: string | null
+          id: string
+          name: string
+          style: Json | null
+          tone: string | null
+          updated_at: string | null
+          user_id: string
+          voice: string | null
+        }
+        Insert: {
+          assets?: Json | null
+          created_at?: string | null
+          id?: string
+          name: string
+          style?: Json | null
+          tone?: string | null
+          updated_at?: string | null
+          user_id: string
+          voice?: string | null
+        }
+        Update: {
+          assets?: Json | null
+          created_at?: string | null
+          id?: string
+          name?: string
+          style?: Json | null
+          tone?: string | null
+          updated_at?: string | null
+          user_id?: string
+          voice?: string | null
+        }
+        Relationships: []
+      }
+      content: {
+        Row: {
+          brand_id: string
+          created_at: string | null
+          data: Json | null
+          id: string
+          status: string
+          title: string | null
+          type: string
+          user_id: string
+        }
+        Insert: {
+          brand_id: string
+          created_at?: string | null
+          data?: Json | null
+          id?: string
+          status?: string
+          title?: string | null
+          type: string
+          user_id: string
+        }
+        Update: {
+          brand_id?: string
+          created_at?: string | null
+          data?: Json | null
+          id?: string
+          status?: string
+          title?: string | null
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      provider_prefs: {
+        Row: {
+          image_mode: string | null
+          text_mode: string | null
+          user_id: string
+          video_mode: string | null
+        }
+        Insert: {
+          image_mode?: string | null
+          text_mode?: string | null
+          user_id: string
+          video_mode?: string | null
+        }
+        Update: {
+          image_mode?: string | null
+          text_mode?: string | null
+          user_id?: string
+          video_mode?: string | null
+        }
+        Relationships: []
+      }
+      schedules: {
+        Row: {
+          content_id: string
+          created_at: string | null
+          id: string
+          meta: Json | null
+          platform: string
+          publish_time: string
+          retries: number
+          status: string
+          user_id: string
+        }
+        Insert: {
+          content_id: string
+          created_at?: string | null
+          id?: string
+          meta?: Json | null
+          platform: string
+          publish_time: string
+          retries?: number
+          status?: string
+          user_id: string
+        }
+        Update: {
+          content_id?: string
+          created_at?: string | null
+          id?: string
+          meta?: Json | null
+          platform?: string
+          publish_time?: string
+          retries?: number
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "schedules_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "content"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
