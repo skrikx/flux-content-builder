@@ -11,9 +11,19 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { user, isLoading, init } = useSessionStore();
   const { initFromDb, refreshFromDb } = useBrandStore();
 
-  useEffect(() => { init(); }, [init]);
-  useEffect(() => { if (user?.id) initFromDb().catch(()=>{}); }, [user?.id, initFromDb]);
-  useEffect(() => { if (user?.id) refreshFromDb().catch(()=>{}); }, [user?.id, refreshFromDb]);
+  useEffect(() => { 
+    console.log('[ProtectedRoute] Initializing session...');
+    init(); 
+  }, [init]);
+  
+  useEffect(() => { 
+    if (user?.isAuthenticated) {
+      console.log('[ProtectedRoute] User authenticated, initializing brands...');
+      initFromDb().catch((e) => {
+        console.error('[ProtectedRoute] Failed to initialize brands:', e);
+      }); 
+    }
+  }, [user?.isAuthenticated, initFromDb]);
 
   if (isLoading) return <div className="p-6">Loading...</div>;
   if (!user?.isAuthenticated) return <Navigate to="/login" replace />;

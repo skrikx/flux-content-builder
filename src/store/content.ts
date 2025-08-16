@@ -2,56 +2,13 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { ContentState, ContentIdea, ContentItem, QueueItem } from '@/types';
 
-// Mock data for demo
-const mockIdeas: ContentIdea[] = [
-  {
-    id: 'idea-1',
-    brandId: 'brand-1',
-    title: 'AI Revolution in Business',
-    description: 'How artificial intelligence is transforming modern business operations',
-    category: 'blog',
-    keywords: ['AI', 'business', 'transformation', 'automation'],
-    targetAudience: 'Business executives and tech leaders',
-    status: 'ready',
-    scheduledDate: new Date('2024-08-20'),
-    createdAt: new Date('2024-08-10'),
-  },
-  {
-    id: 'idea-2',
-    brandId: 'brand-1',
-    title: 'Product Launch Announcement',
-    description: 'Exciting new features in our latest software update',
-    category: 'social',
-    keywords: ['product launch', 'features', 'update'],
-    targetAudience: 'Existing customers and prospects',
-    status: 'draft',
-    createdAt: new Date('2024-08-12'),
-  },
-];
-
-const mockContent: ContentItem[] = [
-  {
-    id: 'content-1',
-    brandId: 'brand-1',
-    ideaId: 'idea-1',
-    type: 'blog',
-    title: 'The AI Revolution: Transforming Business Operations in 2024',
-    content: 'Artificial intelligence is no longer a futuristic concept...',
-    metadata: {
-      wordCount: 1200,
-      estimatedReadTime: 5,
-      hashtags: ['#AI', '#Business', '#Innovation'],
-    },
-    status: 'published',
-    createdAt: new Date('2024-08-11'),
-  },
-];
+// No mock data - real data comes from authenticated users
 
 export const useContentStore = create<ContentState>()(
   persist(
     (set, get) => ({
-      ideas: mockIdeas,
-      items: mockContent,
+      ideas: [],
+      items: [],
       queue: [],
       isGenerating: false,
 

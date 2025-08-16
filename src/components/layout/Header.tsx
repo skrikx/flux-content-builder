@@ -48,24 +48,30 @@ export function Header() {
               <Button variant="outline" className="flex items-center gap-2 min-w-[200px] justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 rounded flux-gradient-bg" />
-                  <span className="truncate">{activeBrand?.name || 'Select Brand'}</span>
+                  <span className="truncate">{activeBrand?.name || (brands.length === 0 ? 'Create a Brand' : 'Select Brand')}</span>
                 </div>
                 <ChevronDown className="w-4 h-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-[200px]">
-              {brands.map((brand) => (
-                <DropdownMenuItem
-                  key={brand.id}
-                  onClick={() => setActiveBrand(brand.id)}
-                  className={activeBrand?.id === brand.id ? 'bg-accent' : ''}
-                >
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded flux-gradient-bg" />
-                    {brand.name}
-                  </div>
+              {brands.length === 0 ? (
+                <DropdownMenuItem disabled>
+                  <div className="text-muted-foreground text-sm">No brands created yet</div>
                 </DropdownMenuItem>
-              ))}
+              ) : (
+                brands.map((brand) => (
+                  <DropdownMenuItem
+                    key={brand.id}
+                    onClick={() => setActiveBrand(brand.id)}
+                    className={activeBrand?.id === brand.id ? 'bg-accent' : ''}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded flux-gradient-bg" />
+                      {brand.name}
+                    </div>
+                  </DropdownMenuItem>
+                ))
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem>
                 <Plus className="w-4 h-4 mr-2" />

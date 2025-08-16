@@ -185,20 +185,13 @@ export async function researchPipeline(brandId: string, config: ProviderConfig):
   const startTime = Date.now();
   
   try {
-    // Get brand (in real app, fetch from store)
-    const brand: Brand = {
-      id: brandId,
-      name: 'Example Brand',
-      description: 'A sample brand for testing',
-      industry: 'Technology',
-      targetAudience: 'Tech professionals',
-      toneOfVoice: 'Professional and approachable',
-      keywords: ['innovation', 'technology', 'solutions'],
-      brandColors: ['#007bff'],
-      socialHandles: {},
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+    // Get brand from the brands store - no mock data
+    const { useBrandStore } = await import('@/store/brands');
+    const brand = useBrandStore.getState().brands.find(b => b.id === brandId);
+    
+    if (!brand) {
+      throw new Error(`Brand with id ${brandId} not found. Please create a brand first.`);
+    }
 
     // Step 1: Competitor discovery
     const refs = await runCompetitorDiscovery(brand, config);
