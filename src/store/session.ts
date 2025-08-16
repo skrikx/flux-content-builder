@@ -77,5 +77,10 @@ function mapUser(s: { user: any } | Session | null): UserSession | null {
 }
 
 async function fetchOnboard() {
-  await supabase.functions.invoke('onboard', { method: 'POST' });
+  const { data: { session } } = await supabase.auth.getSession();
+  const headers = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
+  await supabase.functions.invoke('onboard', { 
+    method: 'POST',
+    headers 
+  });
 }
