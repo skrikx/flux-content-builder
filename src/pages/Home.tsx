@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Sparkles, TrendingUp, Calendar, FileText, Users, BarChart3 } from 'lucide-react';
 import { useBrandStore } from '@/store/brands';
 import { useContentStore } from '@/store/content';
@@ -8,7 +9,12 @@ import { Progress } from '@/components/ui/progress';
 
 export default function Home() {
   const { activeBrand } = useBrandStore();
-  const { ideas, items, queue } = useContentStore();
+  const { ideas, items, queue, loadContent, loadQueue } = useContentStore();
+
+  useEffect(() => {
+    loadContent();
+    loadQueue();
+  }, [loadContent, loadQueue]);
 
   const stats = [
     {
@@ -41,10 +47,23 @@ export default function Home() {
     },
   ];
 
+  // Generate recent activity from real data
   const recentActivity = [
-    { action: 'Generated blog post', target: 'AI Revolution in Business', time: '2 hours ago' },
-    { action: 'Scheduled social post', target: 'Product Launch Announcement', time: '4 hours ago' },
-    { action: 'Updated brand profile', target: 'TechFlow Solutions', time: '1 day ago' },
+    ...items.slice(0, 2).map(item => ({
+      action: `Generated ${item.type}`,
+      target: item.title,
+      time: new Date(item.createdAt).toLocaleDateString() || 'Recently'
+    })),
+    ...queue.slice(0, 1).map(item => ({
+      action: 'Scheduled content',
+      target: items.find(i => i.id === item.contentId)?.title || 'Content',
+      time: new Date(item.scheduledAt).toLocaleDateString() || 'Recently'
+    }))
+  ].slice(0, 3);
+
+  // Fallback activity if no real data
+  const fallbackActivity = [
+    { action: 'Welcome to Flux Content Builder!', target: 'Get started by creating your first brand', time: 'Now' },
   ];
 
   return (
@@ -146,12 +165,12 @@ export default function Home() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {recentActivity.map((activity, index) => (
+              {(recentActivity.length > 0 ? recentActivity : fallbackActivity).map((activity, index) => (
                 <div key={index} className="flex flex-col space-y-1">
                   <p className="text-sm font-medium">{activity.action}</p>
                   <p className="text-sm text-muted-foreground">{activity.target}</p>
                   <p className="text-xs text-muted-foreground">{activity.time}</p>
-                  {index < recentActivity.length - 1 && (
+                  {index < (recentActivity.length > 0 ? recentActivity : fallbackActivity).length - 1 && (
                     <div className="border-b border-border my-2" />
                   )}
                 </div>

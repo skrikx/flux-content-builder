@@ -19,7 +19,7 @@ serve(async (req) => {
   if (!user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...cors, "Content-Type": "application/json" } });
 
   // upsert app_users
-  const { error } = await supabase.from("app_users").upsert({ id: user.id, email: user.email ?? null }).select().maybeSingle();
+  const { error } = await supabase.from("app_users").upsert({ id: user.id, email: user.email ?? null });
   if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { ...cors, "Content-Type": "application/json" } });
 
   return new Response(JSON.stringify({ ok: true, id: user.id }), { headers: { ...cors, "Content-Type": "application/json" } });

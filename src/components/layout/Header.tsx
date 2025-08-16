@@ -3,6 +3,7 @@ import { ChevronDown, Plus, Sparkles, User, LogOut } from 'lucide-react';
 import { useSessionStore } from '@/store/session';
 import { useBrandStore } from '@/store/brands';
 import { GenerateModal } from '@/components/GenerateModal';
+import { BrandModal } from '@/components/BrandModal';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -26,6 +27,7 @@ import { SidebarTrigger } from '@/components/ui/sidebar';
 export function Header() {
   const [isGenerateOpen, setIsGenerateOpen] = useState(false);
   const [showGenerateModal, setShowGenerateModal] = useState(false);
+  const [showBrandModal, setShowBrandModal] = useState(false);
   const user = useSessionStore(state => state.user);
   const logout = useSessionStore(state => state.logout);
   const { brands, activeBrand, setActiveBrand } = useBrandStore();
@@ -73,7 +75,7 @@ export function Header() {
                 ))
               )}
               <DropdownMenuSeparator />
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setShowBrandModal(true)}>
                 <Plus className="w-4 h-4 mr-2" />
                 Add Brand
               </DropdownMenuItem>
@@ -137,6 +139,10 @@ export function Header() {
       <GenerateModal 
         open={showGenerateModal} 
         onOpenChange={setShowGenerateModal} 
+      />
+      <BrandModal 
+        open={showBrandModal} 
+        onOpenChange={setShowBrandModal} 
       />
     </header>
   );

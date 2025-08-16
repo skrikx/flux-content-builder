@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Calendar, Clock, MoreHorizontal, Plus } from 'lucide-react';
 import { useContentStore } from '@/store/content';
 
@@ -13,71 +13,30 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 export default function CalendarQueue() {
-  const { queue, items } = useContentStore();
+  const { queue, items, loadQueue, loadContent } = useContentStore();
   const [selectedDate, setSelectedDate] = useState(new Date());
 
-  // Mock calendar data
-  const calendarEvents = [
-    {
-      id: '1',
-      title: 'AI Revolution Blog Post',
-      time: '09:00',
-      platform: 'LinkedIn',
-      status: 'scheduled',
-      type: 'blog',
-    },
-    {
-      id: '2',
-      title: 'Product Launch Announcement',
-      time: '14:30',
-      platform: 'Twitter',
-      status: 'scheduled',
-      type: 'post',
-    },
-    {
-      id: '3',
-      title: 'Weekly Newsletter',
-      time: '16:00',
-      platform: 'Email',
-      status: 'draft',
-      type: 'email',
-    },
-  ];
+  useEffect(() => {
+    loadQueue();
+    loadContent();
+  }, [loadQueue, loadContent]);
 
-  const queueItems = [
-    {
-      id: '1',
-      title: 'Tech Innovation Trends 2024',
-      platform: 'LinkedIn',
-      scheduledDate: new Date('2024-08-20T09:00:00'),
-      status: 'scheduled',
-      type: 'blog',
-    },
-    {
-      id: '2',
-      title: 'Quick tip: Boost productivity with AI',
-      platform: 'Twitter',
-      scheduledDate: new Date('2024-08-21T14:30:00'),
-      status: 'scheduled',
-      type: 'post',
-    },
-    {
-      id: '3',
-      title: 'Customer Success: Digital Transformation',
-      platform: 'Instagram',
-      scheduledDate: new Date('2024-08-22T11:15:00'),
-      status: 'draft',
-      type: 'image',
-    },
-    {
-      id: '4',
-      title: 'Industry Report: Future of Work',
-      platform: 'LinkedIn',
-      scheduledDate: new Date('2024-08-23T10:00:00'),
-      status: 'scheduled',
-      type: 'blog',
-    },
-  ];
+  // Get today's scheduled items
+  const today = new Date();
+  const todaysItems = queue.filter(item => {
+    const itemDate = new Date(item.scheduledAt);
+    return itemDate.toDateString() === today.toDateString();
+  });
+
+  // Get content details for queue items
+  const queueWithContent = queue.map(queueItem => {
+    const content = items.find(item => item.id === queueItem.contentId);
+    return {
+      ...queueItem,
+      title: content?.title || 'Untitled Content',
+      type: content?.type || 'post',
+    };
+  });
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -183,32 +142,44 @@ export default function CalendarQueue() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {calendarEvents.map((event) => (
-                <div key={event.id} className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
-                  <div className="text-lg">{getTypeIcon(event.type)}</div>
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-medium text-sm truncate">{event.title}</h4>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-xs text-muted-foreground">{event.time}</span>
-                      <Badge variant="outline" className="text-xs">
-                        {event.platform}
-                      </Badge>
-                    </div>
-                  </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm" className="h-auto p-1">
-                        <MoreHorizontal className="w-4 h-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem>Edit</DropdownMenuItem>
-                      <DropdownMenuItem>Reschedule</DropdownMenuItem>
-                      <DropdownMenuItem>Delete</DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+              {todaysItems.length === 0 ? (
+                <div className="text-center py-8">
+                  <Calendar className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">No content scheduled for today</p>
                 </div>
-              ))}
+              ) : (
+                todaysItems.map((item) => {
+                  const content = items.find(c => c.id === item.contentId);
+                  return (
+                    <div key={item.id} className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+                      <div className="text-lg">{getTypeIcon(content?.type || 'post')}</div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium text-sm truncate">{content?.title || 'Untitled Content'}</h4>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(item.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                          <Badge variant="outline" className="text-xs">
+                            {item.platform}
+                          </Badge>
+                        </div>
+                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-auto p-1">
+                            <MoreHorizontal className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem>Edit</DropdownMenuItem>
+                          <DropdownMenuItem>Reschedule</DropdownMenuItem>
+                          <DropdownMenuItem>Delete</DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </CardContent>
         </Card>
@@ -224,41 +195,51 @@ export default function CalendarQueue() {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {queueItems.map((item) => (
-              <div key={item.id} className="flex items-center gap-4 p-4 rounded-lg border border-border hover:bg-muted/50 flux-transition">
-                <div className="text-2xl">{getTypeIcon(item.type)}</div>
-                
-                <div className="flex-1">
-                  <h3 className="font-medium">{item.title}</h3>
-                  <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
-                    <span>{item.platform}</span>
-                    <span>•</span>
-                    <span>{item.scheduledDate.toLocaleDateString()}</span>
-                    <span>•</span>
-                    <span>{item.scheduledDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                  </div>
-                </div>
-
-                <Badge className={getStatusColor(item.status)}>
-                  {item.status}
-                </Badge>
-
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm">
-                      <MoreHorizontal className="w-4 h-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem>View</DropdownMenuItem>
-                    <DropdownMenuItem>Edit</DropdownMenuItem>
-                    <DropdownMenuItem>Reschedule</DropdownMenuItem>
-                    <DropdownMenuItem>Duplicate</DropdownMenuItem>
-                    <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+            {queueWithContent.length === 0 ? (
+              <div className="text-center py-8">
+                <Clock className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">No content in queue</p>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Generate some content and schedule it to see it here
+                </p>
               </div>
-            ))}
+            ) : (
+              queueWithContent.map((item) => (
+                <div key={item.id} className="flex items-center gap-4 p-4 rounded-lg border border-border hover:bg-muted/50 flux-transition">
+                  <div className="text-2xl">{getTypeIcon(item.type)}</div>
+                  
+                  <div className="flex-1">
+                    <h3 className="font-medium">{item.title}</h3>
+                    <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
+                      <span>{item.platform}</span>
+                      <span>•</span>
+                      <span>{new Date(item.scheduledAt).toLocaleDateString()}</span>
+                      <span>•</span>
+                      <span>{new Date(item.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                  </div>
+
+                  <Badge className={getStatusColor(item.status)}>
+                    {item.status}
+                  </Badge>
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm">
+                        <MoreHorizontal className="w-4 h-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem>View</DropdownMenuItem>
+                      <DropdownMenuItem>Edit</DropdownMenuItem>
+                      <DropdownMenuItem>Reschedule</DropdownMenuItem>
+                      <DropdownMenuItem>Duplicate</DropdownMenuItem>
+                      <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              ))
+            )}
           </div>
         </CardContent>
       </Card>
