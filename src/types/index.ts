@@ -209,6 +209,8 @@ export interface ContentState {
   isGenerating: boolean;
   addIdea: (idea: Omit<ContentIdea, 'id' | 'createdAt'>) => void;
   addItem: (item: ContentItem) => void;
-  generateContent: (ideaId: string) => Promise<void>;
-  scheduleContent: (contentId: string, date: Date, platform: string) => void;
+  loadContent: (brandId?: string) => Promise<void>;
+  loadQueue: () => Promise<void>;
+  generateContent: (types: string[], count: number, brandId: string) => Promise<ContentItem[]>;
+  scheduleContent: (contentId: string, date: Date, platform: string) => Promise<void>;
 }
