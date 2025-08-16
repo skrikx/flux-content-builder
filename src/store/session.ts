@@ -78,9 +78,20 @@ function mapUser(s: { user: any } | Session | null): UserSession | null {
 
 async function fetchOnboard() {
   const { data: { session } } = await supabase.auth.getSession();
-  const headers = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
-  await supabase.functions.invoke('onboard', { 
+  if (!session?.access_token) {
+    console.warn('[Session] No access token available for onboard');
+    return;
+  }
+  
+  console.log('[Session] Calling onboard with auth token');
+  const { data, error } = await supabase.functions.invoke('onboard', { 
     method: 'POST',
-    headers 
+    headers: { Authorization: `Bearer ${session.access_token}` }
   });
+  
+  if (error) {
+    console.error('[Session] Onboard error:', error);
+  } else {
+    console.log('[Session] Onboard success:', data);
+  }
 }
