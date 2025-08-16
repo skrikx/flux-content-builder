@@ -14,8 +14,12 @@ export const useSessionStore = create<SessionState>()(
         if (get().isLoading) return;
         set({ isLoading: true });
         const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) set({ user: mapUser(session), isLoading: false });
-        else set({ user: null, isLoading: false });
+        if (session?.user) {
+          set({ user: mapUser(session), isLoading: false });
+          try { await fetchOnboard(); } catch {}
+        } else {
+          set({ user: null, isLoading: false });
+        }
 
         supabase.auth.onAuthStateChange((_event, s) => {
           set({ user: s?.user ? mapUser(s) : null });
@@ -27,6 +31,7 @@ export const useSessionStore = create<SessionState>()(
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         set({ user: mapUser(data), isLoading: false });
+        try { await fetchOnboard(); } catch {}
       },
 
       async signup(email: string, password: string) {
@@ -34,6 +39,7 @@ export const useSessionStore = create<SessionState>()(
         const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
         set({ user: mapUser(data), isLoading: false });
+        try { await fetchOnboard(); } catch {}
       },
 
       async logout() {
@@ -61,4 +67,8 @@ function mapUser(s: { user: any } | Session | null): UserSession | null {
     isAuthenticated: true,
     createdAt: new Date(u.created_at),
   };
+}
+
+async function fetchOnboard() {
+  await supabase.functions.invoke('onboard', { method: 'POST' });
 }

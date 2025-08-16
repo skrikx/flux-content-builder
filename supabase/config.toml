@@ -80,3 +80,6 @@ verify_jwt = true
 
 [functions.health]
 verify_jwt = false
+
+[functions.onboard]
+verify_jwt = true

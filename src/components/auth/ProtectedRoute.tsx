@@ -9,10 +9,11 @@ interface ProtectedRouteProps {
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { user, isLoading, init } = useSessionStore();
-  const { initFromDb } = useBrandStore();
+  const { initFromDb, refreshFromDb } = useBrandStore();
 
   useEffect(() => { init(); }, [init]);
   useEffect(() => { if (user?.id) initFromDb().catch(()=>{}); }, [user?.id, initFromDb]);
+  useEffect(() => { if (user?.id) refreshFromDb().catch(()=>{}); }, [user?.id, refreshFromDb]);
 
   if (isLoading) return <div className="p-6">Loading...</div>;
   if (!user?.isAuthenticated) return <Navigate to="/login" replace />;

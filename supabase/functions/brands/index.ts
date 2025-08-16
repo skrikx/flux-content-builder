@@ -36,25 +36,21 @@ serve(async (req) => {
     }
 
     if (req.method === 'POST') {
-      const body = await req.json()
-      
-      const { data, error } = await supabaseClient
-        .from('brands')
-        .upsert({ ...body, user_id: user.id }, { onConflict: 'id' })
-        .select()
-        .single()
-
-      if (error) {
-        return new Response(
-          JSON.stringify({ error: error.message }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
+      const body = await req.json();
+      if (!body?.name || typeof body.name !== "string") {
+        return new Response(JSON.stringify({ error: "name is required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
-
-      return new Response(
-        JSON.stringify(data),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      const row = {
+        user_id: user.id,
+        name: body.name.trim(),
+        voice: body.voice ?? null,
+        tone: body.tone ?? null,
+        style: body.style ?? {},
+        assets: body.assets ?? {}
+      };
+      const { data, error } = await supabaseClient.from("brands").insert(row).select().single();
+      if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify(data), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     if (req.method === 'GET') {
