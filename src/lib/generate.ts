@@ -1,7 +1,7 @@
 import { Brand, ContentItem, Idea, ProviderConfig, AssetRef } from '@/types';
-import { supabase } from '@/integrations/supabase/client';
 import { useTelemetryStore } from '@/store/telemetry';
 import { createSchedule } from '@/lib/schedule';
+import { invokeWithAuth } from '@/lib/invoke';
 
 // UUID validation for brand IDs
 const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -9,17 +9,6 @@ function assertBrandUUID(brandId: string) {
   if (!uuidRe.test(brandId)) {
     throw new Error('Select or create a Brand first - invalid brand id');
   }
-}
-
-async function authHeader() {
-  const { data: { session } } = await supabase.auth.getSession()
-  const jwt = session?.access_token
-  return jwt ? { Authorization: `Bearer ${jwt}` } : {}
-}
-
-async function invokeWithAuth(name: string, options: any) {
-  const headers = await authHeader()
-  return supabase.functions.invoke(name, { ...options, headers: { ...(options?.headers||{}), ...headers } })
 }
 
 export interface GenerateOptions {

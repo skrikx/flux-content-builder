@@ -137,14 +137,24 @@ serve(async (req) => {
     const path = `${user.id}/images/${key}.png`
 
     let publicUrl: string
-    try {
-      publicUrl = mode === 'premium' 
-        ? await genImagePremium(prompt, path)
-        : await genImageFree(prompt, path)
-    } catch (error) {
-      console.error('Image generation error:', error)
-      // Return a placeholder URL for now
-      publicUrl = `https://via.placeholder.com/${width}x${height}/4338ca/ffffff?text=Image+Generation+Unavailable`
+    let note: string | undefined
+    
+    // Check if SERVICE_ROLE_KEY is available for file uploads
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
+    if (!serviceKey) {
+      console.warn('SUPABASE_SERVICE_ROLE_KEY not configured - using placeholder')
+      publicUrl = `https://via.placeholder.com/${width}x${height}/4338ca/ffffff?text=${encodeURIComponent('Image Generation Unavailable')}`
+      note = 'SUPABASE_SERVICE_ROLE_KEY missing - image not uploaded to storage'
+    } else {
+      try {
+        publicUrl = mode === 'premium' 
+          ? await genImagePremium(prompt, path)
+          : await genImageFree(prompt, path)
+      } catch (error) {
+        console.error('Image generation error:', error)
+        publicUrl = `https://via.placeholder.com/${width}x${height}/4338ca/ffffff?text=${encodeURIComponent('Image Generation Error')}`
+        note = `Image generation failed: ${error.message}`
+      }
     }
 
     const { data, error } = await supabaseClient
@@ -154,7 +164,14 @@ serve(async (req) => {
         brand_id,
         type: 'image',
         title: prompt.slice(0, 120),
-        data: { url: publicUrl, width, height, prompt }
+        data: { 
+          url: publicUrl, 
+          width, 
+          height, 
+          prompt,
+          provider: mode,
+          ...(note && { note })
+        }
       })
       .select()
       .single()

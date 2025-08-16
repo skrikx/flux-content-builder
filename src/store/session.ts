@@ -15,38 +15,47 @@ export const useSessionStore = create<SessionState>()(
         set({ isLoading: true });
         
         console.log('[Session] Initializing session...');
-        const { data: { session } } = await supabase.auth.getSession();
-        console.log('[Session] Got session:', !!session, session?.user?.id);
         
-        if (session?.user) {
-          set({ user: mapUser(session), isLoading: false });
-          console.log('[Session] User authenticated:', session.user.id);
-          try { await fetchOnboard(); } catch (e) { console.warn('[Session] Onboard failed:', e); }
-        } else {
-          set({ user: null, isLoading: false });
-          console.log('[Session] No session found');
-        }
-
-        supabase.auth.onAuthStateChange((_event, s) => {
-          console.log('[Session] Auth state changed:', _event, !!s);
-          set({ user: s?.user ? mapUser(s) : null });
+        // Set up auth state listener first
+        supabase.auth.onAuthStateChange(async (event, session) => {
+          console.log('[Session] Auth state changed:', event, !!session?.user);
+          const user = mapUser(session);
+          set({ user, isLoading: false });
+          
+          // Call onboard when user becomes authenticated
+          if (session?.user && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
+            setTimeout(() => fetchOnboard(), 100);
+          }
         });
+
+        // Then check for existing session
+        const { data: { session } } = await supabase.auth.getSession();
+        console.log('[Session] Initial session check:', !!session?.user);
+        const user = mapUser(session);
+        set({ user, isLoading: false });
+        
+        // Call onboard for existing session
+        if (session?.user) {
+          setTimeout(() => fetchOnboard(), 100);
+        }
       },
 
       async login(email: string, password: string) {
-        set({ isLoading: true });
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        set({ user: mapUser(data), isLoading: false });
-        try { await fetchOnboard(); } catch {}
+        // onboard will be called via auth state change
       },
 
       async signup(email: string, password: string) {
-        set({ isLoading: true });
-        const { data, error } = await supabase.auth.signUp({ email, password });
+        const { error } = await supabase.auth.signUp({ 
+          email, 
+          password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/`
+          }
+        });
         if (error) throw error;
-        set({ user: mapUser(data), isLoading: false });
-        try { await fetchOnboard(); } catch {}
+        // onboard will be called via auth state change
       },
 
       async logout() {
@@ -77,21 +86,25 @@ function mapUser(s: { user: any } | Session | null): UserSession | null {
 }
 
 async function fetchOnboard() {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.access_token) {
-    console.warn('[Session] No access token available for onboard');
-    return;
-  }
-  
-  console.log('[Session] Calling onboard with auth token');
-  const { data, error } = await supabase.functions.invoke('onboard', { 
-    method: 'POST',
-    headers: { Authorization: `Bearer ${session.access_token}` }
-  });
-  
-  if (error) {
-    console.error('[Session] Onboard error:', error);
-  } else {
-    console.log('[Session] Onboard success:', data);
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      console.warn('[Session] No access token available for onboard');
+      return;
+    }
+    
+    console.log('[Session] Calling onboard with auth token');
+    const { data, error } = await supabase.functions.invoke('onboard', { 
+      method: 'POST',
+      headers: { Authorization: `Bearer ${session.access_token}` }
+    });
+    
+    if (error) {
+      console.error('[Session] Onboard error:', error);
+    } else {
+      console.log('[Session] Onboard success:', data);
+    }
+  } catch (e) {
+    console.error('[Session] Onboard exception:', e);
   }
 }
