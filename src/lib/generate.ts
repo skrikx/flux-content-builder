@@ -1,6 +1,7 @@
 import { Brand, ContentItem, Idea, ProviderConfig, AssetRef } from '@/types';
 import { supabase } from '@/integrations/supabase/client';
 import { useTelemetryStore } from '@/store/telemetry';
+import { createSchedule } from '@/lib/schedule';
 
 export interface GenerateOptions {
   brand: Brand;
@@ -47,6 +48,15 @@ async function generateImage(brandId: string, prompt: string, mode = 'free') {
   }
 
   return data;
+}
+
+async function generateVideo(brandId: string, script: string, mode = 'free') {
+  const { data, error } = await supabase.functions.invoke('generate-video', {
+    method: 'POST',
+    body: { brand_id: brandId, mode, script }
+  })
+  if (error) throw new Error(error.message)
+  return data
 }
 
 export async function genCaptions(options: GenerateOptions, config: ProviderConfig): Promise<ContentItem[]> {
@@ -316,23 +326,21 @@ export async function batchGenerate(
         case 'image':
           items = await genImages(options, config);
           break;
-        case 'video':
-          // Placeholder for video generation
+        case 'video': {
+          const script = `Video script about ${ideas[0]?.topic || 'your brand'}`
+          const contentData = await generateVideo(brandId, script, config.toggles?.usePremium ? 'premium' : 'free')
           items = [{
-            id: `content-${Date.now()}`,
+            id: contentData.id,
             brandId,
             type: 'video',
-            title: 'Video: AI Innovation',
-            text: 'Video script about AI innovation in business',
-            assets: [{
-              kind: 'video',
-              prompt: 'Create a video about AI innovation in business',
-              meta: { provider: 'manual', suggested: true },
-            }],
-            status: 'draft',
-            createdAt: new Date(),
-          }];
+            title: contentData.title,
+            text: contentData.data?.script || '',
+            assets: contentData.data?.url ? [{ kind: 'video', url: contentData.data.url }] : [],
+            status: contentData.status || 'draft',
+            createdAt: new Date(contentData.created_at)
+          }]
           break;
+        }
       }
       
       allItems.push(...items);

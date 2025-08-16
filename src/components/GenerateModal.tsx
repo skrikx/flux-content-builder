@@ -11,6 +11,7 @@ import { useBrandStore } from '@/store/brands';
 import { useContentStore } from '@/store/content';
 import { useProviderStore } from '@/store/providers';
 import { batchGenerate } from '@/lib/generate';
+import { createSchedule } from '@/lib/schedule';
 
 interface GenerateModalProps {
   open: boolean;
@@ -70,11 +71,25 @@ export function GenerateModal({ open, onOpenChange }: GenerateModalProps) {
       const items = await batchGenerate(types, maxCount, activeBrand.id, config);
 
       // Add items to store
+      const createdItems = items;
       items.forEach(item => addItem(item));
+
+      // Auto-schedule if enabled
+      if (autoSchedule) {
+        // schedule everything 2 minutes from now by default
+        const when = new Date(Date.now() + 120000).toISOString()
+        for (const it of createdItems) {
+          try {
+            await createSchedule(it.id, 'webhook', when, { hint: 'auto-scheduled from GenerateModal' })
+          } catch (e) {
+            console.warn('Auto schedule failed for', it.id, e)
+          }
+        }
+      }
 
       toast({
         title: 'Content generated successfully!',
-        description: `Generated ${items.length} content items.`,
+        description: `Generated ${items.length} content items.${autoSchedule ? ' Auto-scheduled for 2 minutes from now.' : ''}`,
       });
 
       onOpenChange(false);
