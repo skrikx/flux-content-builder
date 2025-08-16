@@ -22,27 +22,38 @@ export const useBrandStore = create<BrandsState>((set, get) => ({
   },
 
   initFromDb: async () => {
-    const rows = await getBrands();
-    const list: Brand[] = rows.map((r: any) => ({
-      id: r.id,
-      name: r.name,
-      description: r.voice ?? '',
-      industry: r.style?.industry ?? 'General',
-      targetAudience: r.style?.audience ?? '',
-      toneOfVoice: r.tone ?? '',
-      keywords: r.style?.keywords ?? [],
-      brandColors: r.style?.colors ?? [],
-      website: r.assets?.website,
-      logoUrl: r.assets?.logo,
-      socialHandles: r.assets?.social ?? {},
-      createdAt: new Date(r.created_at),
-      updatedAt: new Date(r.updated_at ?? r.created_at),
-    }));
-    set({ brands: list, activeBrand: list[0] ?? null });
+    try {
+      console.log('[BrandStore] Initializing from DB...');
+      const rows = await getBrands();
+      console.log('[BrandStore] Got brands:', rows?.length || 0);
+      
+      const list: Brand[] = (rows || []).map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        description: r.voice ?? '',
+        industry: r.style?.industry ?? 'General',
+        targetAudience: r.style?.audience ?? '',
+        toneOfVoice: r.tone ?? '',
+        keywords: r.style?.keywords ?? [],
+        brandColors: r.style?.colors ?? [],
+        website: r.assets?.website,
+        logoUrl: r.assets?.logo,
+        socialHandles: r.assets?.social ?? {},
+        createdAt: new Date(r.created_at),
+        updatedAt: new Date(r.updated_at ?? r.created_at),
+      }));
+      
+      set({ brands: list, activeBrand: list[0] ?? null });
+      console.log('[BrandStore] Set brands:', list.length, 'active:', list[0]?.name);
+    } catch (e) {
+      console.error('[BrandStore] initFromDb failed:', e);
+      // Don't rethrow to prevent app crash
+    }
   },
 
   createBrand: async (b) => {
     try {
+      console.log('[BrandStore] Creating brand:', b.name);
       const created = await createOrUpdateBrand({
         name: b.name,
         voice: b.toneOfVoice,
@@ -51,6 +62,7 @@ export const useBrandStore = create<BrandsState>((set, get) => ({
         assets: { website: b.website, logo: b.logoUrl, social: b.socialHandles }
       });
 
+      console.log('[BrandStore] Brand created:', created.id);
       const newBrand: Brand = {
         ...b,
         id: created.id,
@@ -59,7 +71,11 @@ export const useBrandStore = create<BrandsState>((set, get) => ({
       };
 
       set(state => ({ brands: [...state.brands, newBrand], activeBrand: newBrand }));
+      console.log('[BrandStore] Brand added to store');
+      
+      toast({ title: "Brand created", description: `${b.name} has been created successfully.` });
     } catch (e: any) {
+      console.error('[BrandStore] Create brand failed:', e);
       toast({ title: "Brand save failed", description: e.message ?? "Unknown error", variant: "destructive" });
       throw e;
     }

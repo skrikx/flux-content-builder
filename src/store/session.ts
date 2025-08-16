@@ -13,15 +13,22 @@ export const useSessionStore = create<SessionState>()(
       async init() {
         if (get().isLoading) return;
         set({ isLoading: true });
+        
+        console.log('[Session] Initializing session...');
         const { data: { session } } = await supabase.auth.getSession();
+        console.log('[Session] Got session:', !!session, session?.user?.id);
+        
         if (session?.user) {
           set({ user: mapUser(session), isLoading: false });
-          try { await fetchOnboard(); } catch {}
+          console.log('[Session] User authenticated:', session.user.id);
+          try { await fetchOnboard(); } catch (e) { console.warn('[Session] Onboard failed:', e); }
         } else {
           set({ user: null, isLoading: false });
+          console.log('[Session] No session found');
         }
 
         supabase.auth.onAuthStateChange((_event, s) => {
+          console.log('[Session] Auth state changed:', _event, !!s);
           set({ user: s?.user ? mapUser(s) : null });
         });
       },

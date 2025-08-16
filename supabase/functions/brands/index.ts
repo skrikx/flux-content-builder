@@ -26,13 +26,16 @@ serve(async (req) => {
     // Get user from JWT
     const {
       data: { user },
+      error: authError
     } = await supabaseClient.auth.getUser()
     
-    console.log("brands() user:", user?.id)
+    console.log("brands() user:", user?.id, "auth error:", authError);
+    console.log("brands() request headers:", req.headers.get('Authorization'));
 
     if (!user) {
+      console.log("brands() unauthorized - no user found");
       return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
+        JSON.stringify({ error: 'Unauthorized', details: authError?.message }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
