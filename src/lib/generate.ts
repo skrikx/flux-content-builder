@@ -11,6 +11,17 @@ function assertBrandUUID(brandId: string) {
   }
 }
 
+async function authHeader() {
+  const { data: { session } } = await supabase.auth.getSession()
+  const jwt = session?.access_token
+  return jwt ? { Authorization: `Bearer ${jwt}` } : {}
+}
+
+async function invokeWithAuth(name: string, options: any) {
+  const headers = await authHeader()
+  return supabase.functions.invoke(name, { ...options, headers: { ...(options?.headers||{}), ...headers } })
+}
+
 export interface GenerateOptions {
   brand: Brand;
   ideas: Idea[];
@@ -22,7 +33,7 @@ export interface GenerateOptions {
 
 async function generateText(brandId: string, topic: string, kind: 'caption' | 'post' | 'blog', mode = 'free') {
   assertBrandUUID(brandId);
-  const { data, error } = await supabase.functions.invoke('generate-text', {
+  const { data, error } = await invokeWithAuth('generate-text', {
     body: {
       brand_id: brandId,
       mode,
@@ -42,7 +53,7 @@ async function generateText(brandId: string, topic: string, kind: 'caption' | 'p
 
 async function generateImage(brandId: string, prompt: string, mode = 'free') {
   assertBrandUUID(brandId);
-  const { data, error } = await supabase.functions.invoke('generate-image', {
+  const { data, error } = await invokeWithAuth('generate-image', {
     body: {
       brand_id: brandId,
       mode,
@@ -62,7 +73,7 @@ async function generateImage(brandId: string, prompt: string, mode = 'free') {
 
 async function generateVideo(brandId: string, script: string, mode = 'free') {
   assertBrandUUID(brandId);
-  const { data, error } = await supabase.functions.invoke('generate-video', {
+  const { data, error } = await invokeWithAuth('generate-video', {
     method: 'POST',
     body: { brand_id: brandId, mode, script }
   })
@@ -275,7 +286,7 @@ export async function batchGenerate(
 
   try {
     // Get brand from Supabase
-    const { data: brand } = await supabase.functions.invoke('brands', {
+    const { data: brand } = await invokeWithAuth('brands', {
       method: 'GET'
     });
 

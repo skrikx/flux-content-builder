@@ -27,6 +27,8 @@ serve(async (req) => {
     const {
       data: { user },
     } = await supabaseClient.auth.getUser()
+    
+    console.log("brands() user:", user?.id)
 
     if (!user) {
       return new Response(

@@ -8,18 +8,30 @@ export type BrandInput = {
   assets?: Record<string, unknown>
 }
 
+async function authHeader() {
+  const { data: { session } } = await supabase.auth.getSession()
+  const jwt = session?.access_token
+  return jwt ? { Authorization: `Bearer ${jwt}` } : {}
+}
+
 export async function createOrUpdateBrand(input: BrandInput) {
-  // Minimal payload - backend will attach user_id
+  const headers = await authHeader()
   const { data, error } = await supabase.functions.invoke("brands", {
     method: "POST",
-    body: input
+    body: input,
+    headers
   })
   if (error) throw new Error(error.message)
+  if (!data?.id) throw new Error("Brand not created (empty response)")
   return data
 }
 
 export async function getBrands() {
-  const { data, error } = await supabase.functions.invoke("brands", { method: "GET" })
+  const headers = await authHeader()
+  const { data, error } = await supabase.functions.invoke("brands", {
+    method: "GET",
+    headers
+  })
   if (error) throw new Error(error.message)
   return data
 }

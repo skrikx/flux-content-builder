@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 
 export default function BrandDetails() {
-  const { activeBrand, createBrand } = useBrandStore();
+  const { activeBrand, createBrand, refreshFromDb } = useBrandStore();
   const { toast } = useToast();
   
   const [formData, setFormData] = useState({
@@ -84,17 +84,21 @@ export default function BrandDetails() {
         });
       } else {
         await createBrand(brandData);
+        // force refresh from DB so placeholders disappear
+        await refreshFromDb?.();
         toast({
           title: 'Brand Created',
           description: 'Your new brand profile has been created.',
         });
       }
-    } catch (error) {
+    } catch (error: any) {
+      const msg = error?.message || "Failed to save brand"
       toast({
-        title: 'Error',
-        description: 'Failed to save brand. Please try again.',
+        title: 'Brand save failed',
+        description: msg,
         variant: 'destructive',
       });
+      throw error;
     }
   };
 
