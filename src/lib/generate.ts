@@ -3,6 +3,14 @@ import { supabase } from '@/integrations/supabase/client';
 import { useTelemetryStore } from '@/store/telemetry';
 import { createSchedule } from '@/lib/schedule';
 
+// UUID validation for brand IDs
+const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+function assertBrandUUID(brandId: string) {
+  if (!uuidRe.test(brandId)) {
+    throw new Error('Select or create a Brand first - invalid brand id');
+  }
+}
+
 export interface GenerateOptions {
   brand: Brand;
   ideas: Idea[];
@@ -13,6 +21,7 @@ export interface GenerateOptions {
 }
 
 async function generateText(brandId: string, topic: string, kind: 'caption' | 'post' | 'blog', mode = 'free') {
+  assertBrandUUID(brandId);
   const { data, error } = await supabase.functions.invoke('generate-text', {
     body: {
       brand_id: brandId,
@@ -32,6 +41,7 @@ async function generateText(brandId: string, topic: string, kind: 'caption' | 'p
 }
 
 async function generateImage(brandId: string, prompt: string, mode = 'free') {
+  assertBrandUUID(brandId);
   const { data, error } = await supabase.functions.invoke('generate-image', {
     body: {
       brand_id: brandId,
@@ -51,6 +61,7 @@ async function generateImage(brandId: string, prompt: string, mode = 'free') {
 }
 
 async function generateVideo(brandId: string, script: string, mode = 'free') {
+  assertBrandUUID(brandId);
   const { data, error } = await supabase.functions.invoke('generate-video', {
     method: 'POST',
     body: { brand_id: brandId, mode, script }
@@ -258,6 +269,7 @@ export async function batchGenerate(
   brandId: string,
   config: ProviderConfig
 ): Promise<ContentItem[]> {
+  assertBrandUUID(brandId);
   const startTime = Date.now();
   const allItems: ContentItem[] = [];
 

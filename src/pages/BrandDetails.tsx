@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 
 export default function BrandDetails() {
-  const { activeBrand, updateBrand, addBrand } = useBrandStore();
+  const { activeBrand, createBrand } = useBrandStore();
   const { toast } = useToast();
   
   const [formData, setFormData] = useState({
@@ -61,7 +61,7 @@ export default function BrandDetails() {
     setBrandColors(brandColors.filter((_, i) => i !== index));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const brandData = {
       ...formData,
       keywords,
@@ -74,17 +74,26 @@ export default function BrandDetails() {
       },
     };
 
-    if (activeBrand) {
-      updateBrand(activeBrand.id, brandData);
+    try {
+      if (activeBrand) {
+        // For now, we only support creating new brands
+        toast({
+          title: 'Update Not Supported',
+          description: 'Brand updating will be available soon. Please create a new brand.',
+          variant: 'destructive',
+        });
+      } else {
+        await createBrand(brandData);
+        toast({
+          title: 'Brand Created',
+          description: 'Your new brand profile has been created.',
+        });
+      }
+    } catch (error) {
       toast({
-        title: 'Brand Updated',
-        description: 'Your brand profile has been successfully updated.',
-      });
-    } else {
-      addBrand(brandData);
-      toast({
-        title: 'Brand Created',
-        description: 'Your new brand profile has been created.',
+        title: 'Error',
+        description: 'Failed to save brand. Please try again.',
+        variant: 'destructive',
       });
     }
   };

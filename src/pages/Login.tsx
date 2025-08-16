@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { Sparkles, Mail, Lock } from 'lucide-react';
 import { useSessionStore } from '@/store/session';
@@ -9,9 +9,13 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default function Login() {
-  const [email, setEmail] = useState('demo@fluxcontent.com');
-  const [password, setPassword] = useState('password');
-  const { user, login, isLoading } = useSessionStore();
+  const { user, isLoading, init, login, signup } = useSessionStore();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [mode, setMode] = useState<'login'|'signup'>('login');
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => { init(); }, [init]);
 
   // Redirect if already authenticated
   if (user?.isAuthenticated) {
@@ -20,7 +24,13 @@ export default function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await login(email, password);
+    setErr(null);
+    try {
+      if (mode === 'login') await login(email, password);
+      else await signup(email, password);
+    } catch (e: any) {
+      setErr(e.message || 'Auth error');
+    }
   };
 
   return (
@@ -38,10 +48,10 @@ export default function Login() {
             </div>
             
             <CardTitle className="text-2xl font-bold">
-              Welcome to FluxContent
+              {mode === 'login' ? 'Welcome Back' : 'Join FluxContent'}
             </CardTitle>
             <CardDescription>
-              Sign in to start creating amazing content
+              {mode === 'login' ? 'Sign in to start creating' : 'Create your account to get started'}
             </CardDescription>
           </CardHeader>
           
@@ -57,7 +67,7 @@ export default function Login() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="pl-10"
-                    placeholder="Enter your email"
+                    placeholder="you@example.com"
                     required
                   />
                 </div>
@@ -73,28 +83,31 @@ export default function Login() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="pl-10"
-                    placeholder="Enter your password"
+                    placeholder="Password"
                     required
                   />
                 </div>
               </div>
+              
+              {err && <div className="text-destructive text-sm">{err}</div>}
               
               <Button 
                 type="submit" 
                 className="w-full flux-gradient-bg text-white hover:opacity-90 flux-transition"
                 disabled={isLoading}
               >
-                {isLoading ? 'Signing in...' : 'Sign In'}
+                {isLoading ? (mode === 'login' ? 'Signing in...' : 'Creating account...') : (mode === 'login' ? 'Sign In' : 'Sign Up')}
+              </Button>
+              
+              <Button 
+                type="button" 
+                variant="ghost"
+                className="w-full"
+                onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}
+              >
+                {mode === 'login' ? 'Need an account? Sign up' : 'Have an account? Sign in'}
               </Button>
             </form>
-            
-            <div className="mt-6 p-4 bg-muted/50 rounded-lg">
-              <p className="text-sm text-muted-foreground text-center">
-                <strong>Demo Account:</strong><br />
-                Email: demo@fluxcontent.com<br />
-                Password: password
-              </p>
-            </div>
           </CardContent>
         </Card>
       </div>

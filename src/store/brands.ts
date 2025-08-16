@@ -1,97 +1,60 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import { BrandState, Brand } from '@/types';
+import { Brand } from '@/types';
+import { createOrUpdateBrand, getBrands } from '@/lib/brands';
 
-// Mock brands for demo
-const mockBrands: Brand[] = [
-  {
-    id: 'brand-1',
-    name: 'TechFlow Solutions',
-    description: 'Innovative software solutions for modern businesses',
-    industry: 'Technology',
-    targetAudience: 'B2B Software Companies',
-    toneOfVoice: 'Professional, innovative, trustworthy',
-    keywords: ['software', 'innovation', 'enterprise', 'solutions'],
-    brandColors: ['#3B82F6', '#1E40AF', '#F3F4F6'],
-    website: 'https://techflow.example.com',
-    socialHandles: {
-      twitter: '@techflow',
-      linkedin: 'techflow-solutions',
-    },
-    createdAt: new Date('2024-01-15'),
-    updatedAt: new Date('2024-01-15'),
+type BrandsState = {
+  brands: Brand[];
+  activeBrand: Brand | null;
+  createBrand: (b: Omit<Brand, 'id'|'createdAt'|'updatedAt'>) => Promise<void>;
+  setActiveBrand: (id: string) => void;
+  initFromDb: () => Promise<void>;
+};
+
+export const useBrandStore = create<BrandsState>((set, get) => ({
+  brands: [],
+  activeBrand: null,
+
+  setActiveBrand: (id: string) => {
+    const b = get().brands.find(x => x.id === id) || null;
+    set({ activeBrand: b });
   },
-  {
-    id: 'brand-2',
-    name: 'EcoLife Wellness',
-    description: 'Sustainable wellness products for conscious consumers',
-    industry: 'Health & Wellness',
-    targetAudience: 'Health-conscious millennials',
-    toneOfVoice: 'Warm, authentic, inspiring',
-    keywords: ['wellness', 'sustainable', 'natural', 'healthy'],
-    brandColors: ['#10B981', '#059669', '#ECFDF5'],
-    website: 'https://ecolife.example.com',
-    socialHandles: {
-      instagram: '@ecolifewellness',
-      facebook: 'ecolifewellness',
-    },
-    createdAt: new Date('2024-01-10'),
-    updatedAt: new Date('2024-01-10'),
+
+  initFromDb: async () => {
+    const rows = await getBrands();
+    const list: Brand[] = rows.map((r: any) => ({
+      id: r.id,
+      name: r.name,
+      description: r.voice ?? '',
+      industry: r.style?.industry ?? 'General',
+      targetAudience: r.style?.audience ?? '',
+      toneOfVoice: r.tone ?? '',
+      keywords: r.style?.keywords ?? [],
+      brandColors: r.style?.colors ?? [],
+      website: r.assets?.website,
+      logoUrl: r.assets?.logo,
+      socialHandles: r.assets?.social ?? {},
+      createdAt: new Date(r.created_at),
+      updatedAt: new Date(r.updated_at ?? r.created_at),
+    }));
+    set({ brands: list, activeBrand: list[0] ?? null });
   },
-];
 
-export const useBrandStore = create<BrandState>()(
-  persist(
-    (set, get) => ({
-      brands: mockBrands,
-      activeBrand: mockBrands[0],
-      isLoading: false,
+  createBrand: async (b) => {
+    const created = await createOrUpdateBrand({
+      name: b.name,
+      voice: b.toneOfVoice,
+      tone: b.toneOfVoice,
+      style: { colors: b.brandColors, keywords: b.keywords, industry: b.industry, audience: b.targetAudience },
+      assets: { website: b.website, logo: b.logoUrl, social: b.socialHandles }
+    });
 
-      addBrand: (brandData) => {
-        const newBrand: Brand = {
-          ...brandData,
-          id: `brand-${Date.now()}`,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        };
-        
-        set(state => ({
-          brands: [...state.brands, newBrand],
-          activeBrand: newBrand,
-        }));
-      },
+    const newBrand: Brand = {
+      ...b,
+      id: created.id,
+      createdAt: new Date(created.created_at),
+      updatedAt: new Date(created.updated_at ?? created.created_at)
+    };
 
-      updateBrand: (id, updates) => {
-        set(state => ({
-          brands: state.brands.map(brand =>
-            brand.id === id 
-              ? { ...brand, ...updates, updatedAt: new Date() }
-              : brand
-          ),
-          activeBrand: state.activeBrand?.id === id 
-            ? { ...state.activeBrand, ...updates, updatedAt: new Date() }
-            : state.activeBrand,
-        }));
-      },
-
-      setActiveBrand: (brandId) => {
-        const { brands } = get();
-        const brand = brands.find(b => b.id === brandId);
-        if (brand) {
-          set({ activeBrand: brand });
-        }
-      },
-
-      deleteBrand: (id) => {
-        set(state => ({
-          brands: state.brands.filter(brand => brand.id !== id),
-          activeBrand: state.activeBrand?.id === id ? null : state.activeBrand,
-        }));
-      },
-    }),
-    {
-      name: 'flux-brands',
-      version: 1,
-    }
-  )
-);
+    set(state => ({ brands: [...state.brands, newBrand], activeBrand: newBrand }));
+  },
+}));

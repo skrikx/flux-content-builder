@@ -18,7 +18,7 @@ export interface Brand {
   toneOfVoice: string;
   keywords: string[];
   brandColors: string[];
-  logo?: string;
+  logoUrl?: string;
   website?: string;
   socialHandles: {
     twitter?: string;
@@ -162,8 +162,10 @@ export interface ResearchPanel {
 export interface SessionState {
   user: UserSession | null;
   isLoading: boolean;
+  init: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  signup: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
   updateUser: (updates: Partial<UserSession>) => void;
 }
 
