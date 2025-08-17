@@ -6,8 +6,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useToast } from '@/hooks/use-toast';
+import { useBrandStore } from '@/store/brands';
+import { useProviderStore } from '@/store/providers';
+import { useResearchStore } from '@/store/research';
+import { researchPipeline } from '@/lib/research';
 
 export default function ContentResearch() {
+  const { toast } = useToast();
+  const { activeBrand } = useBrandStore();
+  const { config } = useProviderStore();
+  const { ideas, addIdeas, setRunning, isRunning: researchRunning } = useResearchStore();
   const [runningPanels, setRunningPanels] = useState<Set<string>>(new Set());
 
   const researchPanels = [
@@ -49,17 +58,42 @@ export default function ContentResearch() {
     },
   ];
 
-  const runResearch = (panelId: string) => {
+  const runResearch = async (panelId: string) => {
+    if (!activeBrand) {
+      toast({
+        title: 'No brand selected',
+        description: 'Please select or create a brand first.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setRunningPanels(prev => new Set([...prev, panelId]));
+    setRunning(true);
     
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      const researchIdeas = await researchPipeline(activeBrand.id, config);
+      addIdeas(researchIdeas);
+      
+      toast({
+        title: 'Research completed',
+        description: `Generated ${researchIdeas.length} content ideas from research.`,
+      });
+    } catch (error) {
+      console.error('Research failed:', error);
+      toast({
+        title: 'Research failed',
+        description: 'Unable to complete research. Please check your API keys.',
+        variant: 'destructive',
+      });
+    } finally {
       setRunningPanels(prev => {
         const newSet = new Set(prev);
         newSet.delete(panelId);
         return newSet;
       });
-    }, 3000);
+      setRunning(false);
+    }
   };
 
   const isRunning = (panelId: string) => runningPanels.has(panelId);
@@ -128,8 +162,49 @@ export default function ContentResearch() {
                     </div>
                   ))
                 ) : (
-                  // Actual results
-                  panel.results.map((result, index) => (
+                  // Show real research results if available, otherwise show mock data
+                  ideas.length > 0 ? (
+                    panel.id === 'trends' ? (
+                      ideas.slice(0, 3).map((idea, idx) => (
+                        <div key={idx} className="p-3 rounded-lg bg-muted/50 space-y-2">
+                          <div className="flex justify-between items-start">
+                            <h4 className="font-medium text-sm">{idea.topic}</h4>
+                            <Badge variant="secondary" className="text-xs">
+                              {Math.round(idea.confidence * 100)}% match
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground">{idea.angle}</p>
+                        </div>
+                      ))
+                    ) : panel.id === 'competitors' ? (
+                      ideas.slice(0, 3).map((idea, idx) => (
+                        <div key={idx} className="p-3 rounded-lg bg-muted/50 space-y-2">
+                          <div className="flex justify-between items-start">
+                            <h4 className="font-medium text-sm">Research Source {idx + 1}</h4>
+                            <span className="text-xs text-muted-foreground">High Relevance</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">{idea.angle}</p>
+                        </div>
+                      ))
+                    ) : (
+                      ideas.slice(0, 3).map((idea, idx) => (
+                        <div key={idx} className="p-3 rounded-lg bg-muted/50 space-y-2">
+                          <div className="flex justify-between items-start">
+                            <h4 className="font-medium text-sm">#{idea.keywords.join(', ')}</h4>
+                            <Badge variant="secondary" className="text-xs">
+                              {idea.confidence > 0.8 ? 'High' : 'Medium'}
+                            </Badge>
+                          </div>
+                          <div className="flex justify-between text-xs text-muted-foreground">
+                            <span>Related to {idea.topic}</span>
+                            <span>{Math.round(idea.confidence * 100)}% relevance</span>
+                          </div>
+                        </div>
+                      ))
+                    )
+                  ) : (
+                    // Fallback to mock data
+                    panel.results.map((result, index) => (
                     <div key={index} className="p-3 rounded-lg bg-muted/50 space-y-2">
                       {panel.id === 'trends' && (
                         <>
@@ -176,8 +251,9 @@ export default function ContentResearch() {
                           </div>
                         </>
                       )}
-                    </div>
-                  ))
+                     </div>
+                    ))
+                  )
                 )}
               </div>
             </CardContent>
@@ -199,16 +275,16 @@ export default function ContentResearch() {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="text-center">
-              <div className="text-2xl font-bold text-accent mb-1">25</div>
-              <div className="text-sm text-muted-foreground">Trending Topics Found</div>
+              <div className="text-2xl font-bold text-accent mb-1">{ideas.filter(i => i.confidence > 0.8).length || 0}</div>
+              <div className="text-sm text-muted-foreground">High-Quality Ideas</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-warning mb-1">8</div>
-              <div className="text-sm text-muted-foreground">Competitors Analyzed</div>
+              <div className="text-2xl font-bold text-warning mb-1">{new Set(ideas.flatMap(i => i.keywords)).size || 0}</div>
+              <div className="text-sm text-muted-foreground">Unique Keywords</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-success mb-1">156</div>
-              <div className="text-sm text-muted-foreground">Keywords Researched</div>
+              <div className="text-2xl font-bold text-success mb-1">{ideas.length}</div>
+              <div className="text-sm text-muted-foreground">Total Ideas Generated</div>
             </div>
           </div>
         </CardContent>

@@ -275,9 +275,16 @@ export async function batchGenerate(
 
   try {
     // Get brand from Supabase
-    const { data: brand } = await invokeWithAuth('brands', {
+    const { data: brands } = await invokeWithAuth('brands', {
       method: 'GET'
     });
+    
+    // Find the specific brand
+    const brand = Array.isArray(brands) ? brands.find(b => b.id === brandId) : brands;
+    
+    if (!brand) {
+      throw new Error(`Brand with id ${brandId} not found`);
+    }
 
     // Use sample ideas for now - in a real app, these would come from research
     const ideas: Idea[] = [
