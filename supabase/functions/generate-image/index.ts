@@ -1,189 +1,84 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
-import { extractToken, supabaseAuthed, getUserFromToken } from "../_auth_util.ts"
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { extractToken, supabaseAuthed, getUserFromToken } from "../_auth_util.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+};
 
-async function genImageFree(prompt: string, path: string) {
-  const url = Deno.env.get('OSS_IMG_URL')
-  
-  if (!url) {
-    throw new Error('OSS_IMG_URL not configured')
+async function uploadToStorage(supabase: any, userId: string, url: string) {
+  try {
+    const res = await fetch(url);
+    const buf = new Uint8Array(await res.arrayBuffer());
+    const filename = `gen/${userId}/${crypto.randomUUID()}.jpg`;
+    const { error } = await supabase.storage.from('content-assets').upload(filename, buf, { contentType: 'image/jpeg', upsert: true });
+    if (error) throw error;
+    const { data: publicUrl } = await supabase.storage.from('content-assets').getPublicUrl(filename);
+    return publicUrl.publicUrl;
+  } catch {
+    return url; // fallback to external URL
   }
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ prompt })
-  })
-
-  if (!response.ok) {
-    throw new Error(`OSS IMG error ${response.status}`)
-  }
-
-  const blob = await response.blob()
-  const arrayBuffer = await blob.arrayBuffer()
-  const uint8Array = new Uint8Array(arrayBuffer)
-
-  const supabase = createClient(
-    Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-  )
-
-  const { data, error } = await supabase.storage
-    .from('content-assets')
-    .upload(path, uint8Array, {
-      contentType: 'image/png',
-      upsert: true
-    })
-
-  if (error) throw error
-
-  const { data: publicUrl } = supabase.storage
-    .from('content-assets')
-    .getPublicUrl(path)
-
-  return publicUrl.publicUrl
-}
-
-async function genImagePremium(prompt: string, path: string) {
-  const key = Deno.env.get('OPENAI_API_KEY') || Deno.env.get('STABILITY_API_KEY')
-  
-  if (!key) {
-    throw new Error('No premium image key configured')
-  }
-
-  const response = await fetch('https://api.openai.com/v1/images/generations', {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'authorization': `Bearer ${key}`
-    },
-    body: JSON.stringify({
-      model: 'gpt-image-1',
-      prompt,
-      size: '1024x1024'
-    })
-  })
-
-  if (!response.ok) {
-    throw new Error(`Premium IMG error ${response.status}`)
-  }
-
-  const data = await response.json()
-  const img = data.data[0].b64_json
-  const uint8Array = new Uint8Array(atob(img).split('').map(char => char.charCodeAt(0)))
-
-  const supabase = createClient(
-    Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-  )
-
-  const { data: uploadData, error } = await supabase.storage
-    .from('content-assets')
-    .upload(path, uint8Array, {
-      contentType: 'image/png',
-      upsert: true
-    })
-
-  if (error) throw error
-
-  const { data: publicUrl } = supabase.storage
-    .from('content-assets')
-    .getPublicUrl(path)
-
-  return publicUrl.publicUrl
 }
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
-  }
+  if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
   try {
     const token = extractToken(req);
     const { data: { user } } = await getUserFromToken(token);
+    if (!user) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
-    if (!user) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
+    const supabase = supabaseAuthed(token);
+    const body = await req.json().catch(()=>({}));
+    const prompt: string = body?.prompt || 'brand image';
 
-    const supabaseClient = supabaseAuthed(token);
+    let imageUrl: string | null = null;
 
-    const { brand_id, mode = 'free', prompt, width = 1024, height = 1024 } = await req.json()
-
-    if (!brand_id || !prompt) {
-      return new Response(
-        JSON.stringify({ error: 'Missing required fields' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    const key = crypto.randomUUID()
-    const path = `${user.id}/images/${key}.png`
-
-    let publicUrl: string
-    let note: string | undefined
-    
-    // Check if SERVICE_ROLE_KEY is available for file uploads
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
-    if (!serviceKey) {
-      console.warn('SUPABASE_SERVICE_ROLE_KEY not configured - using placeholder')
-      publicUrl = `https://via.placeholder.com/${width}x${height}/4338ca/ffffff?text=${encodeURIComponent('Image Generation Unavailable')}`
-      note = 'SUPABASE_SERVICE_ROLE_KEY missing - image not uploaded to storage'
-    } else {
+    // 1) OpenAI (optional)
+    const openaiKey = Deno.env.get('OPENAI_API_KEY');
+    if (openaiKey) {
       try {
-        publicUrl = mode === 'premium' 
-          ? await genImagePremium(prompt, path)
-          : await genImageFree(prompt, path)
-      } catch (error) {
-        console.error('Image generation error:', error)
-        publicUrl = `https://via.placeholder.com/${width}x${height}/4338ca/ffffff?text=${encodeURIComponent('Image Generation Error')}`
-        note = `Image generation failed: ${error.message}`
-      }
+        const r = await fetch('https://api.openai.com/v1/images/generations', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${openaiKey}`, 'Content-Type':'application/json' },
+          body: JSON.stringify({ prompt, n: 1, size: '1024x1024' })
+        });
+        const j = await r.json();
+        imageUrl = j.data?.[0]?.url || null;
+      } catch {}
     }
 
-    const { data, error } = await supabaseClient
-      .from('content')
-      .insert({
-        user_id: user.id,
-        brand_id,
-        type: 'image',
-        title: prompt.slice(0, 120),
-        data: { 
-          url: publicUrl, 
-          width, 
-          height, 
-          prompt,
-          provider: mode,
-          ...(note && { note })
-        }
-      })
-      .select()
-      .single()
-
-    if (error) {
-      return new Response(
-        JSON.stringify({ error: error.message }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+    // 2) Lexica (no key) search fallback
+    if (!imageUrl) {
+      try {
+        const r = await fetch(`https://lexica.art/api/v1/search?q=${encodeURIComponent(prompt)}`);
+        const j = await r.json();
+        const hit = (j.images || [])[0];
+        imageUrl = hit?.src || hit?.imageUrls?.[0] || null;
+      } catch {}
     }
 
-    return new Response(
-      JSON.stringify(data),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
-  } catch (error) {
-    console.error('Error in generate-image function:', error)
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+    // 3) Pexels (free key) fallback if Lexica failed
+    if (!imageUrl && Deno.env.get('PEXELS_API_KEY')) {
+      try {
+        const r = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(prompt)}&per_page=1`, {
+          headers: { 'Authorization': Deno.env.get('PEXELS_API_KEY')! }
+        });
+        const j = await r.json();
+        imageUrl = j.photos?.[0]?.src?.large || j.photos?.[0]?.url || null;
+      } catch {}
+    }
+
+    if (!imageUrl) return new Response(JSON.stringify({ error: 'Image not available' }), { status: 400, headers: { ...corsHeaders, 'Content-Type':'application/json' } });
+
+    // Optional upload to Supabase Storage (requires service role key on Edge project)
+    let finalUrl = imageUrl;
+    try { finalUrl = await uploadToStorage(supabase, user.id, imageUrl); } catch {}
+
+    const payload = { id: crypto.randomUUID(), title: `Image for: ${prompt.slice(0,80)}`, created_at: new Date().toISOString(), data: { url: finalUrl } };
+    return new Response(JSON.stringify(payload), { headers: { ...corsHeaders, 'Content-Type':'application/json' } });
+  } catch (e) {
+    console.error('generate-image() error', e);
+    return new Response(JSON.stringify({ error: 'Internal server error' }), { status: 500, headers: { ...corsHeaders, 'Content-Type':'application/json' } });
   }
-})
+});

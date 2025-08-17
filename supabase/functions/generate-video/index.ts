@@ -1,76 +1,63 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1"
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { extractToken, getUserFromToken } from "../_auth_util.ts";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type"
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+async function pexelsVideo(query: string, key: string) {
+  const r = await fetch(`https://api.pexels.com/videos/search?query=${encodeURIComponent(query)}&per_page=1`, { headers: { 'Authorization': key } });
+  const j = await r.json();
+  const v = j.videos?.[0];
+  if (!v) return null;
+  // Prefer 720p/HD file
+  const file = (v.video_files || []).find((f:any)=> f.quality==='hd') || v.video_files?.[0];
+  return file?.link || v.url || null;
+}
+
+async function pixabayVideo(query: string, key: string) {
+  const r = await fetch(`https://pixabay.com/api/videos/?key=${encodeURIComponent(key)}&q=${encodeURIComponent(query)}&per_page=3`);
+  const j = await r.json();
+  const v = j.hits?.[0];
+  if (!v) return null;
+  const file = v.videos?.medium?.url || v.videos?.large?.url;
+  return file || null;
 }
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders })
-
+  if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
   try {
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-      { global: { headers: { Authorization: req.headers.get("Authorization")! } } }
-    )
+    const token = extractToken(req);
+    const { data: { user } } = await getUserFromToken(token);
+    if (!user) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type':'application/json' } });
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } })
+    const body = await req.json().catch(()=>({}));
+    const script: string = body?.script || 'brand trailer';
+    const topic = script.slice(0, 80);
+
+    let videoUrl: string | null = null;
+
+    const pexKey = Deno.env.get('PEXELS_API_KEY');
+    if (pexKey) {
+      try { videoUrl = await pexelsVideo(topic, pexKey); } catch {}
     }
 
-    if (req.method !== "POST") {
-      return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405, headers: { ...corsHeaders, "Content-Type": "application/json" } })
+    if (!videoUrl) {
+      const pxbKey = Deno.env.get('PIXABAY_API_KEY');
+      if (pxbKey) {
+        try { videoUrl = await pixabayVideo(topic, pxbKey); } catch {}
+      }
     }
 
-    const body = await req.json()
-    const brand_id: string = body.brand_id
-    const mode: "free"|"premium" = body.mode ?? "free"
-    const script: string = (body.script || body.prompt || "").toString().slice(0, 4000)
-
-    if (!brand_id) {
-      return new Response(JSON.stringify({ error: "brand_id required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } })
+    if (!videoUrl) {
+      return new Response(JSON.stringify({ error: 'No free video provider configured (set PEXELS_API_KEY or PIXABAY_API_KEY)' }), { status: 400, headers: { ...corsHeaders, 'Content-Type':'application/json' } });
     }
 
-    // Premium path - Pika style placeholder. We record an intent and return a queued video item.
-    const hasPremium = !!Deno.env.get("PIKA_API_KEY") || !!Deno.env.get("RUNWAY_API_KEY")
-    let videoUrl: string | null = null
-    let status = "ready"
-    let meta: Record<string, unknown> = { provider: mode, note: "" }
-
-    if (mode === "premium" && hasPremium) {
-      // In a real integration you would post the job and poll. We create the content row now with a queued state.
-      status = "ready"
-      meta = { provider: "premium", queued: true, info: "Video job submitted to external provider. Add webhook to update URL when complete." }
-    } else {
-      // Free fallback - no external provider in Edge. Return a storyboard placeholder.
-      status = "ready"
-      meta = { provider: "free", storyboard: true, info: "No video provider configured. Use storyboard assets and script." }
-    }
-
-    const title = script ? `Video: ${script.substring(0, 60)}` : "Video: generated"
-    const { data, error } = await supabase
-      .from("content")
-      .insert({
-        user_id: user.id,
-        brand_id,
-        type: "video",
-        title,
-        status,
-        data: { url: videoUrl, script, meta }
-      })
-      .select()
-      .single()
-
-    if (error) {
-      return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } })
-    }
-
-    return new Response(JSON.stringify(data), { headers: { ...corsHeaders, "Content-Type": "application/json" } })
+    const payload = { id: crypto.randomUUID(), title: `Video for: ${topic}`, created_at: new Date().toISOString(), data: { url: videoUrl, script } };
+    return new Response(JSON.stringify(payload), { headers: { ...corsHeaders, 'Content-Type':'application/json' } });
   } catch (e) {
-    console.error("generate-video error:", e)
-    return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } })
+    console.error('generate-video() error', e);
+    return new Response(JSON.stringify({ error: 'Internal server error' }), { status: 500, headers: { ...corsHeaders, 'Content-Type':'application/json' } });
   }
-})
+});
