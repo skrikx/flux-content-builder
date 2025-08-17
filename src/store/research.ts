@@ -1,32 +1,26 @@
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import { ResearchState, Idea } from '@/types';
+import create from 'zustand';
+import { Idea } from '@/types';
 
-export const useResearchStore = create<ResearchState>()(
-  persist(
-    (set, get) => ({
-      ideas: [],
-      isRunning: false,
-      lastRun: undefined,
+type SourceKey = 'tavily' | 'reddit' | 'hn' | 'wikipedia';
 
-      addIdeas: (ideas: Idea[]) => {
-        set(state => ({
-          ideas: [...state.ideas, ...ideas],
-          lastRun: new Date(),
-        }));
-      },
+type ResearchState = {
+  query: string;
+  sources: Record<SourceKey, boolean>;
+  ideas: Idea[];
+  setQuery: (q: string) => void;
+  toggleSource: (s: SourceKey) => void;
+  setSources: (m: Partial<Record<SourceKey, boolean>>) => void;
+  setIdeas: (ideas: Idea[]) => void;
+  clear: () => void;
+};
 
-      setRunning: (running: boolean) => {
-        set({ isRunning: running });
-      },
-
-      clearIdeas: () => {
-        set({ ideas: [] });
-      },
-    }),
-    {
-      name: 'flux-research',
-      version: 1,
-    }
-  )
-);
+export const useResearchStore = create<ResearchState>((set, get) => ({
+  query: '',
+  sources: { tavily: true, reddit: true, hn: true, wikipedia: true },
+  ideas: [],
+  setQuery: (q) => set({ query: q }),
+  toggleSource: (s) => set({ sources: { ...get().sources, [s]: !get().sources[s] } }),
+  setSources: (m) => set({ sources: { ...get().sources, ...m } }),
+  setIdeas: (ideas) => set({ ideas }),
+  clear: () => set({ query: '', ideas: [] }),
+}));
