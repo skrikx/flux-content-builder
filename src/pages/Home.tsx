@@ -1,7 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Sparkles, TrendingUp, Calendar, FileText, Users, BarChart3 } from 'lucide-react';
 import { useBrandStore } from '@/store/brands';
 import { useContentStore } from '@/store/content';
+import { GenerateModal } from '@/components/GenerateModal';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,6 +11,7 @@ import { Progress } from '@/components/ui/progress';
 export default function Home() {
   const { activeBrand } = useBrandStore();
   const { ideas, items, queue, loadContent, loadQueue } = useContentStore();
+  const [showGenerateModal, setShowGenerateModal] = useState(false);
 
   useEffect(() => {
     loadContent();
@@ -88,7 +90,7 @@ export default function Home() {
             <TrendingUp className="w-4 h-4 mr-2" />
             View Analytics
           </Button>
-          <Button size="lg" className="flux-gradient-bg text-white hover:opacity-90 flux-transition">
+          <Button size="lg" className="flux-gradient-bg text-white hover:opacity-90 flux-transition" onClick={() => setShowGenerateModal(true)}>
             <Sparkles className="w-4 h-4 mr-2" />
             Generate Content
           </Button>
@@ -190,7 +192,7 @@ export default function Home() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Button variant="outline" className="h-20 flex-col gap-2">
+            <Button variant="outline" className="h-20 flex-col gap-2" onClick={() => setShowGenerateModal(true)}>
               <Sparkles className="w-6 h-6" />
               <span>New Content Idea</span>
             </Button>
@@ -205,6 +207,11 @@ export default function Home() {
           </div>
         </CardContent>
       </Card>
+
+      <GenerateModal 
+        open={showGenerateModal} 
+        onOpenChange={setShowGenerateModal}
+      />
     </div>
   );
 }

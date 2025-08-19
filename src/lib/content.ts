@@ -7,7 +7,21 @@ export async function getContent(brandId?: string, type?: string): Promise<Conte
   if (type) params.type = type;
   const { data, error } = await invokeWithAuth("content", { method: "GET", params });
   if (error) throw new Error(error.message);
-  return data || [];
+  
+  // Transform database format to frontend format
+  const items = (data || []).map((item: any) => ({
+    id: item.id,
+    brandId: item.brand_id,
+    type: item.type,
+    title: item.title || `${item.type} content`,
+    text: item.data?.text || item.data?.content || item.data?.markdown,
+    content: item.data?.content || item.data?.text || item.data?.markdown,
+    data: item.data,
+    status: item.status || 'draft',
+    createdAt: new Date(item.created_at),
+  }));
+  
+  return items;
 }
 
 export async function updateContent(id: string, updates: Partial<ContentItem>) {

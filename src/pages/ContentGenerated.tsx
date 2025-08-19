@@ -1,6 +1,8 @@
-import { useState } from 'react';
-import { FileText, MessageSquare, Image, Video, Mail, Copy, Share, Edit, MoreHorizontal } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { FileText, MessageSquare, Image, Video, Copy, Share, Edit, MoreHorizontal, Plus } from 'lucide-react';
 import { useContentStore } from '@/store/content';
+import { useBrandStore } from '@/store/brands';
+import { Link } from 'react-router-dom';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,117 +17,38 @@ import {
 import { useToast } from '@/hooks/use-toast';
 
 export default function ContentGenerated() {
-  const { items } = useContentStore();
+  const { items, loadContent } = useContentStore();
+  const { activeBrand } = useBrandStore();
   const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Mock generated content data
-  const generatedContent = {
-    captions: [
-      {
-        id: '1',
-        title: '🚀 AI Revolution Post',
-        content: '🚀 The AI revolution is here! Businesses leveraging artificial intelligence are seeing 40% faster growth. Are you ready to transform your operations?\n\n#AI #Innovation #BusinessGrowth #Technology #DigitalTransformation',
-        platform: 'LinkedIn',
-        wordCount: 32,
-        hashtags: 5,
-        status: 'approved',
-        createdAt: new Date('2024-08-14T10:30:00'),
-      },
-      {
-        id: '2',
-        title: '💡 Quick Productivity Tip',
-        content: '💡 Quick tip: Use AI tools to automate your daily tasks and save 2+ hours every day!\n\nWhat\'s your favorite productivity hack? 👇\n\n#Productivity #AI #WorkSmart #Automation',
-        platform: 'Twitter',
-        wordCount: 25,
-        hashtags: 4,
-        status: 'draft',
-        createdAt: new Date('2024-08-14T09:15:00'),
-      },
-      {
-        id: '3',
-        title: '📊 Industry Insights',
-        content: '📊 Did you know? 85% of businesses plan to increase their AI investment in 2024.\n\nKey areas of focus:\n✅ Customer service automation\n✅ Data analytics\n✅ Process optimization\n\n#BusinessIntelligence #AI #Innovation',
-        platform: 'Instagram',
-        wordCount: 38,
-        hashtags: 3,
-        status: 'review',
-        createdAt: new Date('2024-08-14T08:45:00'),
-      },
-    ],
-    posts: [
-      {
-        id: '4',
-        title: 'The Future of Remote Work',
-        content: 'Remote work is evolving rapidly with AI-powered tools leading the charge. Companies adopting smart collaboration platforms are seeing 60% improvement in team productivity...',
-        platform: 'LinkedIn',
-        wordCount: 150,
-        readTime: '1 min',
-        status: 'approved',
-        createdAt: new Date('2024-08-13T16:20:00'),
-      },
-      {
-        id: '5',
-        title: 'Customer Success Story: TechCorp',
-        content: 'How TechCorp increased their operational efficiency by 45% using our AI-powered solutions. A deep dive into their digital transformation journey...',
-        platform: 'Blog',
-        wordCount: 200,
-        readTime: '2 min',
-        status: 'draft',
-        createdAt: new Date('2024-08-13T14:10:00'),
-      },
-    ],
-    blogs: [
-      {
-        id: '6',
-        title: 'The Complete Guide to AI in Business Operations',
-        content: 'Artificial intelligence is revolutionizing how businesses operate, from customer service to supply chain management. This comprehensive guide explores...',
-        wordCount: 1200,
-        readTime: '5 min',
-        status: 'approved',
-        createdAt: new Date('2024-08-12T11:30:00'),
-      },
-      {
-        id: '7',
-        title: 'Measuring ROI on AI Implementation',
-        content: 'Understanding the return on investment for AI initiatives is crucial for business success. Here\'s how to measure and optimize your AI ROI...',
-        wordCount: 800,
-        readTime: '3 min',
-        status: 'review',
-        createdAt: new Date('2024-08-11T13:45:00'),
-      },
-    ],
-    images: [
-      {
-        id: '8',
-        title: 'AI Statistics Infographic',
-        description: 'Visual representation of AI adoption statistics across industries',
-        dimensions: '1080x1080',
-        format: 'PNG',
-        status: 'approved',
-        createdAt: new Date('2024-08-14T12:00:00'),
-      },
-      {
-        id: '9',
-        title: 'Product Feature Showcase',
-        description: 'Highlighting new AI features in our platform',
-        dimensions: '1200x628',
-        format: 'JPEG',
-        status: 'draft',
-        createdAt: new Date('2024-08-13T15:30:00'),
-      },
-    ],
-    videos: [
-      {
-        id: '10',
-        title: 'AI Demo: 60 Second Overview',
-        description: 'Quick overview of our AI platform capabilities',
-        duration: '0:58',
-        format: 'MP4',
-        resolution: '1920x1080',
-        status: 'review',
-        createdAt: new Date('2024-08-12T14:20:00'),
-      },
-    ],
+  useEffect(() => {
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        await loadContent(activeBrand?.id);
+      } catch (error) {
+        console.error('Failed to load content:', error);
+        toast({
+          title: 'Error loading content',
+          description: 'Failed to load your generated content. Please try again.',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
+  }, [activeBrand?.id, loadContent, toast]);
+
+  // Group items by type
+  const groupedContent = {
+    captions: items.filter(item => item.type === 'caption'),
+    posts: items.filter(item => item.type === 'post'),
+    blogs: items.filter(item => item.type === 'blog'),
+    images: items.filter(item => item.type === 'image'),
+    videos: items.filter(item => item.type === 'video'),
   };
 
   const getStatusColor = (status: string) => {
@@ -145,19 +68,36 @@ export default function ContentGenerated() {
     });
   };
 
-  const ContentCard = ({ item, type }: { item: any; type: string }) => (
+  const ContentCard = ({ item, type }: { item: any; type: string }) => {
+    const getContentText = () => {
+      if (item.data?.content) return item.data.content;
+      if (item.data?.text) return item.data.text;
+      if (item.data?.description) return item.data.description;
+      return 'No content available';
+    };
+
+    const getMetrics = () => {
+      const content = getContentText();
+      const wordCount = content.split(' ').length;
+      const hashtags = (content.match(/#\w+/g) || []).length;
+      return { wordCount, hashtags };
+    };
+
+    const metrics = getMetrics();
+    
+    return (
     <Card className="flux-card">
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="flex-1">
-            <CardTitle className="text-lg">{item.title}</CardTitle>
+            <CardTitle className="text-lg">{item.title || `${type.charAt(0).toUpperCase() + type.slice(1)} Content`}</CardTitle>
             <div className="flex items-center gap-2 mt-2">
               <Badge className={getStatusColor(item.status)}>
                 {item.status}
               </Badge>
-              {item.platform && (
+              {item.data?.platform && (
                 <Badge variant="outline" className="text-xs">
-                  {item.platform}
+                  {item.data.platform}
                 </Badge>
               )}
             </div>
@@ -173,7 +113,7 @@ export default function ContentGenerated() {
                 <Edit className="w-4 h-4 mr-2" />
                 Edit
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleCopy(item.content || item.description)}>
+              <DropdownMenuItem onClick={() => handleCopy(getContentText())}>
                 <Copy className="w-4 h-4 mr-2" />
                 Copy
               </DropdownMenuItem>
@@ -186,49 +126,74 @@ export default function ContentGenerated() {
         </div>
       </CardHeader>
       <CardContent>
-        {type === 'captions' && (
-          <>
-            <p className="text-sm mb-3 whitespace-pre-wrap">{item.content}</p>
-            <div className="flex items-center gap-4 text-xs text-muted-foreground">
-              <span>{item.wordCount} words</span>
-              <span>{item.hashtags} hashtags</span>
-              <span>{item.createdAt.toLocaleDateString()}</span>
-            </div>
-          </>
-        )}
+        <div className="mb-3">
+          {type === 'images' ? (
+            item.data?.url ? (
+              <img src={item.data.url} alt={item.title} className="w-full h-32 object-cover rounded-md mb-2" />
+            ) : (
+              <div className="w-full h-32 bg-muted rounded-md mb-2 flex items-center justify-center">
+                <Image className="w-8 h-8 text-muted-foreground" />
+              </div>
+            )
+          ) : type === 'videos' ? (
+            item.data?.url ? (
+              <video src={item.data.url} className="w-full h-32 object-cover rounded-md mb-2" controls />
+            ) : (
+              <div className="w-full h-32 bg-muted rounded-md mb-2 flex items-center justify-center">
+                <Video className="w-8 h-8 text-muted-foreground" />
+              </div>
+            )
+          ) : (
+            <p className="text-sm whitespace-pre-wrap line-clamp-3">{getContentText()}</p>
+          )}
+        </div>
         
-        {(type === 'posts' || type === 'blogs') && (
-          <>
-            <p className="text-sm mb-3">{item.content}</p>
-            <div className="flex items-center gap-4 text-xs text-muted-foreground">
-              <span>{item.wordCount} words</span>
-              <span>{item.readTime} read</span>
-              <span>{item.createdAt.toLocaleDateString()}</span>
-            </div>
-          </>
-        )}
-        
-        {type === 'images' && (
-          <>
-            <p className="text-sm mb-3">{item.description}</p>
-            <div className="flex items-center gap-4 text-xs text-muted-foreground">
-              <span>{item.dimensions}</span>
-              <span>{item.format}</span>
-              <span>{item.createdAt.toLocaleDateString()}</span>
-            </div>
-          </>
-        )}
-        
-        {type === 'videos' && (
-          <>
-            <p className="text-sm mb-3">{item.description}</p>
-            <div className="flex items-center gap-4 text-xs text-muted-foreground">
-              <span>{item.duration}</span>
-              <span>{item.resolution}</span>
-              <span>{item.createdAt.toLocaleDateString()}</span>
-            </div>
-          </>
-        )}
+        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+          {type === 'captions' && (
+            <>
+              <span>{metrics.wordCount} words</span>
+              <span>{metrics.hashtags} hashtags</span>
+            </>
+          )}
+          {(type === 'posts' || type === 'blogs') && (
+            <>
+              <span>{metrics.wordCount} words</span>
+              <span>{Math.ceil(metrics.wordCount / 200)} min read</span>
+            </>
+          )}
+          {type === 'images' && (
+            <>
+              <span>{item.data?.dimensions || '1024x1024'}</span>
+              <span>{item.data?.format || 'PNG'}</span>
+            </>
+          )}
+          {type === 'videos' && (
+            <>
+              <span>{item.data?.duration || '0:30'}</span>
+              <span>{item.data?.resolution || '1920x1080'}</span>
+            </>
+          )}
+          <span>{new Date(item.createdAt || Date.now()).toLocaleDateString()}</span>
+        </div>
+      </CardContent>
+    </Card>
+    );
+  };
+
+  const EmptyState = ({ type, icon: Icon }: { type: string; icon: any }) => (
+    <Card className="flux-card text-center py-12">
+      <CardContent>
+        <Icon className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+        <h3 className="text-lg font-semibold mb-2">No {type} generated yet</h3>
+        <p className="text-muted-foreground mb-4">
+          Start by generating content using AI or create your first {type.toLowerCase()} manually.
+        </p>
+        <Button asChild>
+          <Link to="/">
+            <Plus className="w-4 h-4 mr-2" />
+            Generate Content
+          </Link>
+        </Button>
       </CardContent>
     </Card>
   );
@@ -267,43 +232,151 @@ export default function ContentGenerated() {
         </TabsList>
 
         <TabsContent value="captions" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {generatedContent.captions.map((caption) => (
-              <ContentCard key={caption.id} item={caption} type="captions" />
-            ))}
-          </div>
+          {isLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[...Array(3)].map((_, i) => (
+                <Card key={i} className="flux-card">
+                  <CardHeader>
+                    <div className="h-4 bg-muted rounded animate-pulse mb-2" />
+                    <div className="h-3 bg-muted rounded animate-pulse w-2/3" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      <div className="h-3 bg-muted rounded animate-pulse" />
+                      <div className="h-3 bg-muted rounded animate-pulse w-4/5" />
+                      <div className="h-3 bg-muted rounded animate-pulse w-3/5" />
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : groupedContent.captions.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {groupedContent.captions.map((caption) => (
+                <ContentCard key={caption.id} item={caption} type="captions" />
+              ))}
+            </div>
+          ) : (
+            <EmptyState type="Captions" icon={MessageSquare} />
+          )}
         </TabsContent>
 
         <TabsContent value="posts" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {generatedContent.posts.map((post) => (
-              <ContentCard key={post.id} item={post} type="posts" />
-            ))}
-          </div>
+          {isLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {[...Array(2)].map((_, i) => (
+                <Card key={i} className="flux-card">
+                  <CardHeader>
+                    <div className="h-4 bg-muted rounded animate-pulse mb-2" />
+                    <div className="h-3 bg-muted rounded animate-pulse w-2/3" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      <div className="h-3 bg-muted rounded animate-pulse" />
+                      <div className="h-3 bg-muted rounded animate-pulse w-4/5" />
+                      <div className="h-3 bg-muted rounded animate-pulse w-3/5" />
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : groupedContent.posts.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {groupedContent.posts.map((post) => (
+                <ContentCard key={post.id} item={post} type="posts" />
+              ))}
+            </div>
+          ) : (
+            <EmptyState type="Posts" icon={FileText} />
+          )}
         </TabsContent>
 
         <TabsContent value="blogs" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {generatedContent.blogs.map((blog) => (
-              <ContentCard key={blog.id} item={blog} type="blogs" />
-            ))}
-          </div>
+          {isLoading ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {[...Array(2)].map((_, i) => (
+                <Card key={i} className="flux-card">
+                  <CardHeader>
+                    <div className="h-4 bg-muted rounded animate-pulse mb-2" />
+                    <div className="h-3 bg-muted rounded animate-pulse w-2/3" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      <div className="h-3 bg-muted rounded animate-pulse" />
+                      <div className="h-3 bg-muted rounded animate-pulse w-4/5" />
+                      <div className="h-3 bg-muted rounded animate-pulse w-3/5" />
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : groupedContent.blogs.length > 0 ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {groupedContent.blogs.map((blog) => (
+                <ContentCard key={blog.id} item={blog} type="blogs" />
+              ))}
+            </div>
+          ) : (
+            <EmptyState type="Blogs" icon={FileText} />
+          )}
         </TabsContent>
 
         <TabsContent value="images" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {generatedContent.images.map((image) => (
-              <ContentCard key={image.id} item={image} type="images" />
-            ))}
-          </div>
+          {isLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[...Array(3)].map((_, i) => (
+                <Card key={i} className="flux-card">
+                  <CardHeader>
+                    <div className="h-4 bg-muted rounded animate-pulse mb-2" />
+                    <div className="h-3 bg-muted rounded animate-pulse w-2/3" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-32 bg-muted rounded animate-pulse mb-2" />
+                    <div className="space-y-2">
+                      <div className="h-3 bg-muted rounded animate-pulse w-1/2" />
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : groupedContent.images.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {groupedContent.images.map((image) => (
+                <ContentCard key={image.id} item={image} type="images" />
+              ))}
+            </div>
+          ) : (
+            <EmptyState type="Images" icon={Image} />
+          )}
         </TabsContent>
 
         <TabsContent value="videos" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {generatedContent.videos.map((video) => (
-              <ContentCard key={video.id} item={video} type="videos" />
-            ))}
-          </div>
+          {isLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {[...Array(2)].map((_, i) => (
+                <Card key={i} className="flux-card">
+                  <CardHeader>
+                    <div className="h-4 bg-muted rounded animate-pulse mb-2" />
+                    <div className="h-3 bg-muted rounded animate-pulse w-2/3" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-32 bg-muted rounded animate-pulse mb-2" />
+                    <div className="space-y-2">
+                      <div className="h-3 bg-muted rounded animate-pulse w-1/2" />
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : groupedContent.videos.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {groupedContent.videos.map((video) => (
+                <ContentCard key={video.id} item={video} type="videos" />
+              ))}
+            </div>
+          ) : (
+            <EmptyState type="Videos" icon={Video} />
+          )}
         </TabsContent>
       </Tabs>
     </div>
