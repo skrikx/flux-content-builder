@@ -18,7 +18,7 @@ serve(async (req) => {
     if (req.method === 'GET') {
       const url = new URL(req.url);
       const brandId = url.searchParams.get('brand_id');
-      let q = supabase.from('schedules').select('*').eq('user_id', user.id).order('publish_at', { ascending: true });
+      let q = supabase.from('schedules').select('*').eq('user_id', user.id).order('publish_time', { ascending: true });
       if (brandId) q = q.eq('brand_id', brandId);
       const { data, error } = await q;
       if (error) return new Response(JSON.stringify({ error: error.message }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
@@ -29,7 +29,7 @@ serve(async (req) => {
       const body = await req.json().catch(()=>({}));
       const { content_id, brand_id, publish_at } = body || {};
       if (!content_id || !brand_id || !publish_at) return new Response(JSON.stringify({ error: 'content_id, brand_id, publish_at required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      const row = { user_id: user.id, brand_id, content_id, publish_at };
+      const row = { user_id: user.id, brand_id, content_id, publish_time: publish_at };
       const { data, error } = await supabase.from('schedules').insert(row).select().single();
       if (error) return new Response(JSON.stringify({ error: error.message }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       return new Response(JSON.stringify(data), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });

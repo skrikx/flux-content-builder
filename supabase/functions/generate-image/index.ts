@@ -47,9 +47,14 @@ serve(async (req) => {
           model: 'black-forest-labs/FLUX.1-schnell',
         });
         
-        // Convert blob to base64
+        // Convert blob to base64 safely
         const arrayBuffer = await image.arrayBuffer();
-        const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+        const uint8Array = new Uint8Array(arrayBuffer);
+        const chunks = [];
+        for (let i = 0; i < uint8Array.length; i += 8192) {
+          chunks.push(String.fromCharCode.apply(null, Array.from(uint8Array.subarray(i, i + 8192))));
+        }
+        const base64 = btoa(chunks.join(''));
         imageBase64 = `data:image/png;base64,${base64}`;
         console.log('Successfully generated image with Hugging Face');
       } catch (error) {

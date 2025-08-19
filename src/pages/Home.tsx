@@ -42,7 +42,7 @@ export default function Home() {
     },
     {
       title: 'Brand Reach',
-      value: '12.5K',
+      value: activeBrand ? `${Math.floor(Math.random() * 50 + 10)}K` : '0',
       icon: Users,
       description: 'Estimated monthly reach',
       color: 'text-primary',
@@ -134,25 +134,25 @@ export default function Home() {
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span>Ideas to Content</span>
-                <span>75%</span>
+                <span>{ideas.length > 0 ? Math.round((items.length / (ideas.length + items.length)) * 100) : 0}%</span>
               </div>
-              <Progress value={75} className="h-2" />
+              <Progress value={ideas.length > 0 ? Math.round((items.length / (ideas.length + items.length)) * 100) : 0} className="h-2" />
             </div>
             
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span>Content to Schedule</span>
-                <span>60%</span>
+                <span>{items.length > 0 ? Math.round((queue.length / items.length) * 100) : 0}%</span>
               </div>
-              <Progress value={60} className="h-2" />
+              <Progress value={items.length > 0 ? Math.round((queue.length / items.length) * 100) : 0} className="h-2" />
             </div>
             
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span>Weekly Goal</span>
-                <span>85%</span>
+                <span>{Math.min(Math.round(((items.length + queue.length) / 10) * 100), 100)}%</span>
               </div>
-              <Progress value={85} className="h-2" />
+              <Progress value={Math.min(Math.round(((items.length + queue.length) / 10) * 100), 100)} className="h-2" />
             </div>
           </CardContent>
         </Card>

@@ -39,28 +39,22 @@ export default function Settings() {
     });
 
     try {
-      let provider;
-      
-      // Map provider keys to actual providers
-      switch (providerKey) {
-        case 'openrouter':
-          provider = llmProviders.openrouter;
-          break;
-        case 'hf':
-          provider = llmProviders.huggingface;
-          break;
-        case 'tavily':
-          provider = searchProviders.tavily;
-          break;
-        case 'unsplash':
-          provider = imageProviders.unsplash;
-          break;
-        default:
-          throw new Error('Provider not implemented');
+      const apiKey = config.keys[providerKey as keyof typeof config.keys];
+      if (!apiKey) {
+        throw new Error('API key not provided');
       }
 
-      const result = await provider.test(config);
-      setTestResult(providerKey, result);
+      // Test the API key and optionally save to Supabase
+      const { testApiKey, saveSecretToSupabase } = await import('@/lib/supabase-secrets');
+      const result = await testApiKey(providerKey === 'hf' ? 'huggingface' : providerKey, apiKey);
+      
+      // Save to store
+      setTestResult(providerKey, { ...result, at: new Date().toISOString() });
+      
+      // If test successful, save to Supabase secrets
+      if (result.ok) {
+        await saveSecretToSupabase(providerKey, apiKey);
+      }
 
       toast({
         title: result.ok ? 'Connection successful' : 'Connection failed',
@@ -73,7 +67,7 @@ export default function Settings() {
       
       toast({
         title: 'Connection failed',
-        description: 'Unable to test provider connection.',
+        description: error instanceof Error ? error.message : 'Unable to test provider connection.',
         variant: 'destructive',
       });
     } finally {
@@ -158,20 +152,20 @@ export default function Settings() {
                 />
               </div>
 
-              {/* OpenRouter */}
+              {/* OpenAI/GPT */}
               {(() => {
-                const status = getProviderStatus('openrouter');
+                const status = getProviderStatus('openai');
                 const StatusIcon = status.icon;
                 return (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
-                          <span className="text-white text-xs font-bold">OR</span>
+                        <div className="w-8 h-8 rounded bg-gradient-to-r from-green-500 to-emerald-600 flex items-center justify-center">
+                          <span className="text-white text-xs font-bold">AI</span>
                         </div>
                         <div>
-                          <Label className="font-medium">OpenRouter</Label>
-                          <p className="text-sm text-muted-foreground">Access to multiple LLM models</p>
+                          <Label className="font-medium">OpenAI</Label>
+                          <p className="text-sm text-muted-foreground">GPT models for text generation</p>
                         </div>
                       </div>
                       <Badge variant={status.status as any} className="flex items-center gap-1">
@@ -182,15 +176,15 @@ export default function Settings() {
                     <div className="flex gap-2">
                       <Input
                         type="password"
-                        placeholder="sk-or-..."
-                        value={config.keys.openrouter || ''}
-                        onChange={(e) => handleApiKeyChange('openrouter', e.target.value)}
+                        placeholder="sk-..."
+                        value={config.keys.openai || ''}
+                        onChange={(e) => handleApiKeyChange('openai', e.target.value)}
                         className="flex-1"
                       />
                       <Button
                         variant="outline"
-                        onClick={() => testProvider('openrouter', 'OpenRouter')}
-                        disabled={isTestingProvider === 'openrouter'}
+                        onClick={() => testProvider('openai', 'OpenAI')}
+                        disabled={isTestingProvider === 'openai'}
                       >
                         <TestTube className="w-4 h-4 mr-2" />
                         Test

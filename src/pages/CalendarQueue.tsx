@@ -21,12 +21,34 @@ export default function CalendarQueue() {
     loadContent();
   }, [loadQueue, loadContent]);
 
-  // Get today's scheduled items
+  // Get real schedule data
   const today = new Date();
-  const todaysItems = queue.filter(item => {
+  const realScheduledItems = queue.filter(item => {
     const itemDate = new Date(item.scheduledAt);
     return itemDate.toDateString() === today.toDateString();
   });
+
+  // Generate calendar data from real schedules
+  const getCalendarData = () => {
+    const currentDate = new Date();
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const firstDayOfMonth = new Date(year, month, 1).getDay();
+    
+    // Map scheduled items to calendar days
+    const scheduledDays = new Set();
+    queue.forEach(item => {
+      const itemDate = new Date(item.scheduledAt);
+      if (itemDate.getMonth() === month && itemDate.getFullYear() === year) {
+        scheduledDays.add(itemDate.getDate());
+      }
+    });
+    
+    return { daysInMonth, firstDayOfMonth, scheduledDays };
+  };
+  
+  const { daysInMonth, firstDayOfMonth, scheduledDays } = getCalendarData();
 
   // Get content details for queue items
   const queueWithContent = queue.map(queueItem => {
@@ -96,12 +118,13 @@ export default function CalendarQueue() {
                 ))}
               </div>
 
-              {/* Calendar Days with Events */}
+              {/* Real Calendar Days with Dynamic Events */}
               <div className="grid grid-cols-7 gap-2">
                 {Array.from({ length: 35 }, (_, i) => {
-                  const day = i - 6; // Start from previous month
-                  const isCurrentMonth = day > 0 && day <= 31;
-                  const hasEvent = isCurrentMonth && [15, 16, 18, 22].includes(day);
+                  const day = i - firstDayOfMonth + 1;
+                  const isCurrentMonth = day > 0 && day <= daysInMonth;
+                  const hasEvent = isCurrentMonth && scheduledDays.has(day);
+                  const isToday = isCurrentMonth && day === today.getDate();
                   
                   return (
                     <div
@@ -110,6 +133,7 @@ export default function CalendarQueue() {
                         h-20 p-1 border border-border rounded-lg cursor-pointer flux-transition
                         ${isCurrentMonth ? 'bg-background hover:bg-muted/50' : 'bg-muted/30 text-muted-foreground'}
                         ${hasEvent ? 'ring-2 ring-accent/20' : ''}
+                        ${isToday ? 'bg-accent/10 border-accent' : ''}
                       `}
                     >
                       <div className="text-sm font-medium mb-1">
@@ -118,7 +142,7 @@ export default function CalendarQueue() {
                       {hasEvent && (
                         <div className="space-y-1">
                           <div className="w-full h-1 bg-accent rounded" />
-                          <div className="text-xs truncate">Blog post</div>
+                          <div className="text-xs truncate">Scheduled content</div>
                         </div>
                       )}
                     </div>
@@ -142,13 +166,13 @@ export default function CalendarQueue() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {todaysItems.length === 0 ? (
+              {realScheduledItems.length === 0 ? (
                 <div className="text-center py-8">
                   <Calendar className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
                   <p className="text-muted-foreground">No content scheduled for today</p>
                 </div>
               ) : (
-                todaysItems.map((item) => {
+                realScheduledItems.map((item) => {
                   const content = items.find(c => c.id === item.contentId);
                   return (
                     <div key={item.id} className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">

@@ -8,24 +8,31 @@ const corsHeaders = {
 }
 
 async function genTextFree(prompt: string) {
-  const base = Deno.env.get('OSS_LLM_BASE_URL')
-  const model = Deno.env.get('OSS_LLM_MODEL') || 'llama3.1'
+  const openaiKey = Deno.env.get('OPENAI_API_KEY')
   
-  if (!base) {
-    throw new Error('OSS_LLM_BASE_URL not configured')
+  if (!openaiKey) {
+    throw new Error('OPENAI_API_KEY not configured for free tier')
   }
 
-  const response = await fetch(`${base}/api/generate`, {
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ model, prompt })
+    headers: {
+      'content-type': 'application/json',
+      'authorization': `Bearer ${openaiKey}`
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 300
+    })
   })
 
   if (!response.ok) {
-    throw new Error(`OSS LLM error ${response.status}`)
+    throw new Error(`OpenAI error ${response.status}`)
   }
 
-  return await response.text()
+  const data = await response.json()
+  return data.choices?.[0]?.message?.content || ''
 }
 
 async function genTextPremium(prompt: string) {
