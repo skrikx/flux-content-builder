@@ -2,13 +2,13 @@ import React, { useState } from 'react';
 import { useResearchStore } from '@/store/research';
 import { runResearch } from '@/lib/research';
 import { batchGenerate } from '@/lib/generate';
-import { useBrandsStore } from '@/store/brands';
-import { useProviderConfig } from '@/store/settings';
+import { useBrandStore } from '@/store/brands';
+import { useProviderStore } from '@/store/providers';
 
 export default function ContentResearchPage() {
   const { query, setQuery, sources, toggleSource, ideas, setIdeas } = useResearchStore();
-  const { activeBrandId } = useBrandsStore();
-  const providerConfig = useProviderConfig();
+  const { activeBrand } = useBrandStore();
+  const { config: providerConfig } = useProviderStore();
   const [loading, setLoading] = useState(false);
   const [genLoading, setGenLoading] = useState(false);
   const [count, setCount] = useState(5);
@@ -25,11 +25,11 @@ export default function ContentResearchPage() {
   }
 
   async function onUseForGeneration() {
-    if (!activeBrandId) { alert('Create or select a brand first.'); return; }
+    if (!activeBrand) { alert('Create or select a brand first.'); return; }
     if (!ideas.length) { alert('Run research first.'); return; }
     setGenLoading(true);
     try {
-      await batchGenerate(['caption','post','image','video'], count, activeBrandId, providerConfig);
+      await batchGenerate(['caption','post','image','video'], count, activeBrand.id, providerConfig);
       alert('Generation triggered. Check the Generated tab.');
     } catch (e:any) {
       alert(e.message || 'Generation failed');

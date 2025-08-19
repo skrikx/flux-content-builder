@@ -1,6 +1,6 @@
 import { supabase, SUPABASE_URL } from "@/integrations/supabase/client";
 
-type HTTPMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+type HTTPMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD';
 type InvokeOptions = { method?: HTTPMethod; params?: Record<string, string|number|boolean|undefined>; body?: any; headers?: Record<string, string>; };
 
 export async function invokeWithAuth(name: string, options: InvokeOptions = {}) {

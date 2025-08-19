@@ -80,7 +80,7 @@ export function GenerateModal({ open, onOpenChange }: GenerateModalProps) {
         const when = new Date(Date.now() + 120000).toISOString()
         for (const it of createdItems) {
           try {
-            await createSchedule(it.id, 'webhook', when, { hint: 'auto-scheduled from GenerateModal' })
+            await createSchedule(it.id, activeBrand.id, when)
           } catch (e) {
             console.warn('Auto schedule failed for', it.id, e)
           }
