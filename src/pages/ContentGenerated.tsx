@@ -70,6 +70,7 @@ export default function ContentGenerated() {
 
   const ContentCard = ({ item, type }: { item: any; type: string }) => {
     const getContentText = () => {
+      if (item.data?.markdown) return item.data.markdown;
       if (item.data?.content) return item.data.content;
       if (item.data?.text) return item.data.text;
       if (item.data?.description) return item.data.description;

@@ -12,12 +12,12 @@ export async function getContent(brandId?: string, type?: string): Promise<Conte
   const items = (data || []).map((item: any) => ({
     id: item.id,
     brandId: item.brand_id,
-    type: item.type,
-    title: item.title || `${item.type} content`,
-    text: item.data?.text || item.data?.content || item.data?.markdown,
-    content: item.data?.content || item.data?.text || item.data?.markdown,
+    type: item.data?.kind || item.type, // Use data.kind for content type, fallback to item.type
+    title: item.title || `${item.data?.kind || item.type} content`,
+    text: item.data?.markdown || item.data?.content || item.data?.text,
+    content: item.data?.markdown || item.data?.content || item.data?.text,
     data: item.data,
-    status: item.status || 'draft',
+    status: item.status === 'ready' ? 'draft' : item.status, // Map database status to frontend
     createdAt: new Date(item.created_at),
   }));
   

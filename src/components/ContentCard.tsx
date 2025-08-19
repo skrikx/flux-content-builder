@@ -195,7 +195,7 @@ export function ContentCard({ item, onAddToQueue, onExport }: ContentCardProps) 
               {item.metadata.estimatedReadTime && (
                 <span>{item.metadata.estimatedReadTime} min read • </span>
               )}
-              <span>Created {item.createdAt.toLocaleDateString()}</span>
+              <span>Created {new Date(item.createdAt).toLocaleDateString()}</span>
             </div>
           )}
         </div>
