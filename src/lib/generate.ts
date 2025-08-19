@@ -118,8 +118,13 @@ export async function batchGenerate(types: ('caption'|'post'|'blog'|'image'|'vid
         case 'blog': items = await genBlogs({ brand, ideas, count }, config); break;
         case 'image': items = await genImages({ brand, ideas, count }, config); break;
         case 'video': {
+          // Skip video generation in free tier - requires premium API keys
+          if (!config.toggles?.usePremium) {
+            console.log('Video generation skipped - requires premium tier');
+            break;
+          }
           const script = `Video script about ${ideas[0]?.topic || 'your brand'}`;
-          const contentData = await generateVideo(brand.id, script, config.toggles?.usePremium ? 'premium' : 'free');
+          const contentData = await generateVideo(brand.id, script, 'premium');
           items = [{
             id: contentData.id, brandId: brand.id, type: 'video', title: contentData.title,
             text: contentData.data?.script || '', assets: contentData.data?.url ? [{ kind: 'video', url: contentData.data.url }] : [],

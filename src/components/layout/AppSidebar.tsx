@@ -69,7 +69,7 @@ export function AppSidebar() {
 
         {/* Main Navigation */}
         <SidebarGroup>
-          <SidebarGroupLabel className={isCollapsed ? 'hidden' : ''}>
+          <SidebarGroupLabel className={isCollapsed ? 'hidden' : 'text-sidebar-foreground/70 font-medium'}>
             Main
           </SidebarGroupLabel>
           <SidebarGroupContent>
@@ -90,7 +90,7 @@ export function AppSidebar() {
 
         {/* Other Items */}
         <SidebarGroup>
-          <SidebarGroupLabel className={isCollapsed ? 'hidden' : ''}>
+          <SidebarGroupLabel className={isCollapsed ? 'hidden' : 'text-sidebar-foreground/70 font-medium'}>
             Other
           </SidebarGroupLabel>
           <SidebarGroupContent>

@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { HfInference } from 'https://esm.sh/@huggingface/inference@2.3.2';
 import { extractToken, supabaseAuthed, getUserFromToken } from "../_auth_util.ts";
 
 const corsHeaders = {
@@ -33,23 +34,47 @@ serve(async (req) => {
     const prompt: string = body?.prompt || 'brand image';
 
     let imageUrl: string | null = null;
+    let imageBase64: string | null = null;
 
-    // 1) OpenAI (optional)
-    const openaiKey = Deno.env.get('OPENAI_API_KEY');
-    if (openaiKey) {
+    // 1) Hugging Face (free tier - preferred)
+    const hfToken = Deno.env.get('HUGGING_FACE_ACCESS_TOKEN');
+    if (hfToken) {
       try {
-        const r = await fetch('https://api.openai.com/v1/images/generations', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${openaiKey}`, 'Content-Type':'application/json' },
-          body: JSON.stringify({ prompt, n: 1, size: '1024x1024' })
+        console.log('Generating image with Hugging Face...');
+        const hf = new HfInference(hfToken);
+        const image = await hf.textToImage({
+          inputs: prompt,
+          model: 'black-forest-labs/FLUX.1-schnell',
         });
-        const j = await r.json();
-        imageUrl = j.data?.[0]?.url || null;
-      } catch {}
+        
+        // Convert blob to base64
+        const arrayBuffer = await image.arrayBuffer();
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+        imageBase64 = `data:image/png;base64,${base64}`;
+        console.log('Successfully generated image with Hugging Face');
+      } catch (error) {
+        console.log('Hugging Face generation failed:', error);
+      }
     }
 
-    // 2) Lexica (no key) search fallback
-    if (!imageUrl) {
+    // 2) OpenAI (premium fallback)
+    if (!imageBase64 && !imageUrl) {
+      const openaiKey = Deno.env.get('OPENAI_API_KEY');
+      if (openaiKey) {
+        try {
+          const r = await fetch('https://api.openai.com/v1/images/generations', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${openaiKey}`, 'Content-Type':'application/json' },
+            body: JSON.stringify({ prompt, n: 1, size: '1024x1024' })
+          });
+          const j = await r.json();
+          imageUrl = j.data?.[0]?.url || null;
+        } catch {}
+      }
+    }
+
+    // 3) Lexica (no key) search fallback  
+    if (!imageBase64 && !imageUrl) {
       try {
         const r = await fetch(`https://lexica.art/api/v1/search?q=${encodeURIComponent(prompt)}`);
         const j = await r.json();
@@ -58,22 +83,14 @@ serve(async (req) => {
       } catch {}
     }
 
-    // 3) Pexels (free key) fallback if Lexica failed
-    if (!imageUrl && Deno.env.get('PEXELS_API_KEY')) {
-      try {
-        const r = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(prompt)}&per_page=1`, {
-          headers: { 'Authorization': Deno.env.get('PEXELS_API_KEY')! }
-        });
-        const j = await r.json();
-        imageUrl = j.photos?.[0]?.src?.large || j.photos?.[0]?.url || null;
-      } catch {}
+    if (!imageBase64 && !imageUrl) return new Response(JSON.stringify({ error: 'Image generation not available' }), { status: 400, headers: { ...corsHeaders, 'Content-Type':'application/json' } });
+
+    let finalUrl = imageBase64 || imageUrl;
+    
+    // Only try to upload external URLs to storage, not base64 images
+    if (imageUrl && !imageBase64) {
+      try { finalUrl = await uploadToStorage(supabase, user.id, imageUrl); } catch {}
     }
-
-    if (!imageUrl) return new Response(JSON.stringify({ error: 'Image not available' }), { status: 400, headers: { ...corsHeaders, 'Content-Type':'application/json' } });
-
-    // Optional upload to Supabase Storage (requires service role key on Edge project)
-    let finalUrl = imageUrl;
-    try { finalUrl = await uploadToStorage(supabase, user.id, imageUrl); } catch {}
 
     const payload = { id: crypto.randomUUID(), title: `Image for: ${prompt.slice(0,80)}`, created_at: new Date().toISOString(), data: { url: finalUrl } };
     return new Response(JSON.stringify(payload), { headers: { ...corsHeaders, 'Content-Type':'application/json' } });
