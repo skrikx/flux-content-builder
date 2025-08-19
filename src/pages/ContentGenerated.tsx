@@ -42,14 +42,22 @@ export default function ContentGenerated() {
     loadData();
   }, [activeBrand?.id, loadContent, toast]);
 
-  // Group items by type
+  // Group items by type with debugging
   const groupedContent = {
     captions: items.filter(item => item.type === 'caption'),
-    posts: items.filter(item => item.type === 'post'),
+    posts: items.filter(item => item.type === 'post'), 
     blogs: items.filter(item => item.type === 'blog'),
-    images: items.filter(item => item.type === 'image'),
+    images: items.filter(item => {
+      const isImage = item.type === 'image';
+      if (isImage) {
+        console.log('Found image item:', item);
+      }
+      return isImage;
+    }),
     videos: items.filter(item => item.type === 'video'),
   };
+
+  console.log('Grouped content images:', groupedContent.images);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -69,6 +77,13 @@ export default function ContentGenerated() {
   };
 
   const ContentCard = ({ item, type }: { item: any; type: string }) => {
+    // Debug logging for images
+    if (type === 'images') {
+      console.log('Image item data:', item);
+      console.log('Image URL:', item.data?.url);
+      console.log('Item type:', item.type);
+    }
+
     const getContentText = () => {
       if (item.data?.markdown) return item.data.markdown;
       if (item.data?.content) return item.data.content;
@@ -129,13 +144,42 @@ export default function ContentGenerated() {
       <CardContent>
         <div className="mb-3">
           {type === 'images' ? (
-            item.data?.url ? (
-              <img src={item.data.url} alt={item.title} className="w-full h-32 object-cover rounded-md mb-2" />
-            ) : (
-              <div className="w-full h-32 bg-muted rounded-md mb-2 flex items-center justify-center">
-                <Image className="w-8 h-8 text-muted-foreground" />
-              </div>
-            )
+            // Enhanced image display logic
+            (() => {
+              const imageUrl = item.data?.url;
+              const hasValidUrl = imageUrl && (imageUrl.startsWith('http') || imageUrl.startsWith('data:'));
+              
+              return hasValidUrl ? (
+                <div className="relative">
+                  <img 
+                    src={imageUrl} 
+                    alt={item.title || 'Generated image'} 
+                    className="w-full h-32 object-cover rounded-md mb-2"
+                    onError={(e) => {
+                      console.error('Image failed to load:', imageUrl);
+                      e.currentTarget.style.display = 'none';
+                      e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                    }}
+                  />
+                  <div className="hidden w-full h-32 bg-muted rounded-md mb-2 flex items-center justify-center">
+                    <div className="text-center">
+                      <Image className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                      <p className="text-xs text-muted-foreground">Image failed to load</p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="w-full h-32 bg-muted rounded-md mb-2 flex items-center justify-center">
+                  <div className="text-center">
+                    <Image className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                    <p className="text-xs text-muted-foreground">No image available</p>
+                    {!hasValidUrl && imageUrl && (
+                      <p className="text-xs text-destructive mt-1">Invalid URL: {imageUrl.substring(0, 30)}...</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })()
           ) : type === 'videos' ? (
             item.data?.url ? (
               <video src={item.data.url} className="w-full h-32 object-cover rounded-md mb-2" controls />
@@ -166,6 +210,7 @@ export default function ContentGenerated() {
             <>
               <span>{item.data?.dimensions || '1024x1024'}</span>
               <span>{item.data?.format || 'PNG'}</span>
+              {item.data?.url && <span className="text-success">✓ Image loaded</span>}
             </>
           )}
           {type === 'videos' && (
