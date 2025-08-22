@@ -7,7 +7,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-async function uploadToStorage(supabase: any, userId: string, url: string) {
+async function uploadToStorage(supabase: ReturnType<typeof supabaseAuthed>, userId: string, url: string) {
   try {
     const res = await fetch(url);
     const buf = new Uint8Array(await res.arrayBuffer());
@@ -74,7 +74,9 @@ serve(async (req) => {
           });
           const j = await r.json();
           imageUrl = j.data?.[0]?.url || null;
-        } catch {}
+        } catch (error) {
+          console.log('OpenAI generation failed:', error);
+        }
       }
     }
 
@@ -85,7 +87,9 @@ serve(async (req) => {
         const j = await r.json();
         const hit = (j.images || [])[0];
         imageUrl = hit?.src || hit?.imageUrls?.[0] || null;
-      } catch {}
+      } catch (error) {
+        console.log('Lexica search failed:', error);
+      }
     }
 
     if (!imageBase64 && !imageUrl) return new Response(JSON.stringify({ error: 'Image generation not available' }), { status: 400, headers: { ...corsHeaders, 'Content-Type':'application/json' } });
@@ -94,7 +98,11 @@ serve(async (req) => {
     
     // Only try to upload external URLs to storage, not base64 images
     if (imageUrl && !imageBase64) {
-      try { finalUrl = await uploadToStorage(supabase, user.id, imageUrl); } catch {}
+      try { 
+        finalUrl = await uploadToStorage(supabase, user.id, imageUrl); 
+      } catch (error) {
+        console.log('Storage upload failed, using original URL:', error);
+      }
     }
 
     const payload = { id: crypto.randomUUID(), title: `Image for: ${prompt.slice(0,80)}`, created_at: new Date().toISOString(), data: { url: finalUrl } };

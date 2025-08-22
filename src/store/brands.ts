@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Brand } from '@/types';
+import { Brand, DatabaseBrand } from '@/types';
 import { createOrUpdateBrand, getBrands } from '@/lib/brands';
 import { toast } from '@/hooks/use-toast';
 
@@ -27,7 +27,7 @@ export const useBrandStore = create<BrandsState>((set, get) => ({
       const rows = await getBrands();
       console.log('[BrandStore] Got brands:', rows?.length || 0);
       
-      const list: Brand[] = (rows || []).map((r: any) => ({
+      const list: Brand[] = (rows || []).map((r: DatabaseBrand) => ({
         id: r.id,
         name: r.name,
         description: r.voice ?? '',
@@ -74,16 +74,17 @@ export const useBrandStore = create<BrandsState>((set, get) => ({
       console.log('[BrandStore] Brand added to store');
       
       toast({ title: "Brand created", description: `${b.name} has been created successfully.` });
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : 'Unknown error';
       console.error('[BrandStore] Create brand failed:', e);
-      toast({ title: "Brand save failed", description: e.message ?? "Unknown error", variant: "destructive" });
+      toast({ title: "Brand save failed", description: errorMessage, variant: "destructive" });
       throw e;
     }
   },
 
   refreshFromDb: async () => {
     const rows = await getBrands();
-    const list: Brand[] = rows.map((r: any) => ({
+    const list: Brand[] = rows.map((r: DatabaseBrand) => ({
       id: r.id,
       name: r.name,
       description: r.voice ?? '',

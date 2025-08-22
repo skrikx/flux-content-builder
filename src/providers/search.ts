@@ -1,11 +1,34 @@
 import { Provider, ProviderConfig, ProviderTestResult, Ref } from '@/types';
-import { fetchWithRetry, normalizeError } from './util.http';
+import { fetchWithRetry, normalizeError } from '@/lib/utils';
 
 export interface SearchOptions {
   query: string;
   limit?: number;
-  source?: 'web' | 'news' | 'reddit';
 }
+
+type TavilyResult = {
+  url: string;
+  title: string;
+  content: string;
+};
+
+type TavilyResponse = {
+  results?: TavilyResult[];
+};
+
+type RedditPost = {
+  data: {
+    title: string;
+    selftext: string;
+    permalink: string;
+  };
+};
+
+type RedditResponse = {
+  data: {
+    children: RedditPost[];
+  };
+};
 
 export class TavilyProvider implements Provider {
   name = 'tavily';
@@ -61,9 +84,9 @@ export class TavilyProvider implements Provider {
         }),
       });
 
-      const data = await response.json();
+      const data: TavilyResponse = await response.json();
       
-      return data.results?.map((result: any) => ({
+      return data.results?.map((result: TavilyResult) => ({
         url: result.url,
         title: result.title,
         source: 'web' as const,
@@ -135,9 +158,9 @@ export class RedditProvider implements Provider {
         },
       });
 
-      const data = await response.json();
+      const data: RedditResponse = await response.json();
       
-      return data.data?.children?.map((post: any) => ({
+      return data.data?.children?.map((post: RedditPost) => ({
         url: `https://reddit.com${post.data.permalink}`,
         title: post.data.title,
         source: 'reddit' as const,

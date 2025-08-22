@@ -25,7 +25,32 @@ async function publishViaBuffer(text: string, mediaUrl: string | null) {
   }
 }
 
-async function publishViaWebhook(payload: any) {
+type WebhookPayload = {
+  text: string;
+  media: string | null;
+  platform: string;
+  brand_id: string;
+};
+
+type ContentRow = {
+  id: string;
+  content_id: string;
+  platform: string;
+  status: string;
+  retries?: number;
+};
+
+type ContentData = {
+  id: string;
+  brand_id: string;
+  title: string;
+  data?: {
+    markdown?: string;
+    url?: string;
+  };
+};
+
+async function publishViaWebhook(payload: WebhookPayload) {
   const hook = Deno.env.get('GHL_WEBHOOK_URL')
   if (!hook) throw new Error('GHL_WEBHOOK_URL missing')
   
@@ -40,7 +65,7 @@ async function publishViaWebhook(payload: any) {
   }
 }
 
-async function publishRow(row: any, supabase: any) {
+async function publishRow(row: ContentRow, supabase: ReturnType<typeof createClient>) {
   const { data: content } = await supabase
     .from('content')
     .select('*')
