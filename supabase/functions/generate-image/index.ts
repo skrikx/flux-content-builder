@@ -1,13 +1,14 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { HfInference } from 'https://esm.sh/@huggingface/inference@2.3.2';
 import { extractToken, supabaseAuthed, getUserFromToken } from "../_auth_util.ts";
+import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-async function uploadToStorage(supabase: any, userId: string, url: string) {
+async function uploadToStorage(supabase: SupabaseClient, userId: string, url: string) {
   try {
     const res = await fetch(url);
     const buf = new Uint8Array(await res.arrayBuffer());
@@ -16,7 +17,8 @@ async function uploadToStorage(supabase: any, userId: string, url: string) {
     if (error) throw error;
     const { data: publicUrl } = await supabase.storage.from('content-assets').getPublicUrl(filename);
     return publicUrl.publicUrl;
-  } catch {
+  } catch (error) {
+    console.warn('Failed to upload to storage:', error);
     return url; // fallback to external URL
   }
 }
@@ -74,7 +76,9 @@ serve(async (req) => {
           });
           const j = await r.json();
           imageUrl = j.data?.[0]?.url || null;
-        } catch {}
+        } catch (error) {
+          console.warn('OpenAI image generation failed:', error);
+        }
       }
     }
 
@@ -85,7 +89,9 @@ serve(async (req) => {
         const j = await r.json();
         const hit = (j.images || [])[0];
         imageUrl = hit?.src || hit?.imageUrls?.[0] || null;
-      } catch {}
+      } catch (error) {
+        console.warn('Lexica search failed:', error);
+      }
     }
 
     if (!imageBase64 && !imageUrl) return new Response(JSON.stringify({ error: 'Image generation not available' }), { status: 400, headers: { ...corsHeaders, 'Content-Type':'application/json' } });
@@ -94,7 +100,11 @@ serve(async (req) => {
     
     // Only try to upload external URLs to storage, not base64 images
     if (imageUrl && !imageBase64) {
-      try { finalUrl = await uploadToStorage(supabase, user.id, imageUrl); } catch {}
+      try { 
+        finalUrl = await uploadToStorage(supabase, user.id, imageUrl); 
+      } catch (error) {
+        console.warn('Storage upload failed, using external URL:', error);
+      }
     }
 
     const payload = { id: crypto.randomUUID(), title: `Image for: ${prompt.slice(0,80)}`, created_at: new Date().toISOString(), data: { url: finalUrl } };

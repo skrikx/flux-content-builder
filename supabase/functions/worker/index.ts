@@ -1,9 +1,34 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
+import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+interface PublishPayload {
+  text: string;
+  media: string | null;
+  platform: string;
+  brand_id: string;
+}
+
+interface ScheduleRow {
+  id: string;
+  content_id: string;
+  platform: string;
+  retries?: number;
+}
+
+interface ContentRow {
+  id: string;
+  title: string;
+  brand_id: string;
+  data?: {
+    markdown?: string;
+    url?: string;
+  };
 }
 
 async function publishViaBuffer(text: string, mediaUrl: string | null) {
@@ -25,7 +50,7 @@ async function publishViaBuffer(text: string, mediaUrl: string | null) {
   }
 }
 
-async function publishViaWebhook(payload: any) {
+async function publishViaWebhook(payload: PublishPayload) {
   const hook = Deno.env.get('GHL_WEBHOOK_URL')
   if (!hook) throw new Error('GHL_WEBHOOK_URL missing')
   
@@ -40,7 +65,7 @@ async function publishViaWebhook(payload: any) {
   }
 }
 
-async function publishRow(row: any, supabase: any) {
+async function publishRow(row: ScheduleRow, supabase: SupabaseClient) {
   const { data: content } = await supabase
     .from('content')
     .select('*')
@@ -49,8 +74,9 @@ async function publishRow(row: any, supabase: any) {
 
   if (!content) return
 
-  const text = content.data?.markdown || content.title || 'Post'
-  const media = content.data?.url || null
+  const contentData = content as ContentRow;
+  const text = contentData.data?.markdown || contentData.title || 'Post'
+  const media = contentData.data?.url || null
 
   if (row.platform === 'buffer') {
     await publishViaBuffer(text, media)
@@ -59,7 +85,7 @@ async function publishRow(row: any, supabase: any) {
       text,
       media,
       platform: row.platform,
-      brand_id: content.brand_id
+      brand_id: contentData.brand_id
     })
   }
 }

@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { FileText, MessageSquare, Image, Video, Copy, Share, Edit, MoreHorizontal, Plus } from 'lucide-react';
+import { FileText, MessageSquare, Image, Video, Copy, Share, Edit, MoreHorizontal, Plus, type LucideIcon } from 'lucide-react';
 import { useContentStore } from '@/store/content';
 import { useBrandStore } from '@/store/brands';
 import { Link } from 'react-router-dom';
+import type { ContentItem } from '@/types';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -76,7 +77,7 @@ export default function ContentGenerated() {
     });
   };
 
-  const ContentCard = ({ item, type }: { item: any; type: string }) => {
+  const ContentCard = ({ item, type }: { item: ContentItem; type: string }) => {
     // Debug logging for images
     if (type === 'images') {
       console.log('Image item data:', item);
@@ -226,7 +227,7 @@ export default function ContentGenerated() {
     );
   };
 
-  const EmptyState = ({ type, icon: Icon }: { type: string; icon: any }) => (
+  const EmptyState = ({ type, icon: Icon }: { type: string; icon: LucideIcon }) => (
     <Card className="flux-card text-center py-12">
       <CardContent>
         <Icon className="w-12 h-12 text-muted-foreground mx-auto mb-4" />

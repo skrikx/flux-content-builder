@@ -28,8 +28,9 @@ export default function Login() {
     try {
       if (mode === 'login') await login(email, password);
       else await signup(email, password);
-    } catch (e: any) {
-      setErr(e.message || 'Auth error');
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : 'Auth error';
+      setErr(errorMessage);
     }
   };
 

@@ -1,6 +1,22 @@
 import { invokeWithAuth } from "@/lib/invoke";
 import { ContentItem } from "@/types";
 
+interface DatabaseContentItem {
+  id: string;
+  brand_id: string;
+  type?: string;
+  title?: string;
+  status: string;
+  created_at: string;
+  data?: {
+    kind?: string;
+    markdown?: string;
+    content?: string;
+    text?: string;
+    url?: string;
+  };
+}
+
 export async function getContent(brandId?: string, type?: string): Promise<ContentItem[]> {
   const params: Record<string, string> = {};
   if (brandId) params.brand_id = brandId;
@@ -9,7 +25,7 @@ export async function getContent(brandId?: string, type?: string): Promise<Conte
   if (error) throw new Error(error.message);
   
   // Transform database format to frontend format
-  const items = (data || []).map((item: any) => ({
+  const items = (data as DatabaseContentItem[] || []).map((item: DatabaseContentItem) => ({
     id: item.id,
     brandId: item.brand_id,
     type: item.data?.kind || item.type, // Use data.kind for content type, fallback to item.type
