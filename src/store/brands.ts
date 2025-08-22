@@ -12,6 +12,26 @@ type BrandsState = {
   refreshFromDb: () => Promise<void>;
 };
 
+interface DatabaseBrandRow {
+  id: string;
+  name: string;
+  voice?: string;
+  tone?: string;
+  created_at: string;
+  updated_at?: string;
+  style?: {
+    industry?: string;
+    audience?: string;
+    keywords?: string[];
+    colors?: string[];
+  };
+  assets?: {
+    website?: string;
+    logo?: string;
+    social?: Record<string, string>;
+  };
+}
+
 export const useBrandStore = create<BrandsState>((set, get) => ({
   brands: [],
   activeBrand: null,
@@ -27,7 +47,7 @@ export const useBrandStore = create<BrandsState>((set, get) => ({
       const rows = await getBrands();
       console.log('[BrandStore] Got brands:', rows?.length || 0);
       
-      const list: Brand[] = (rows || []).map((r: any) => ({
+      const list: Brand[] = (rows || []).map((r: DatabaseBrandRow) => ({
         id: r.id,
         name: r.name,
         description: r.voice ?? '',
@@ -74,16 +94,17 @@ export const useBrandStore = create<BrandsState>((set, get) => ({
       console.log('[BrandStore] Brand added to store');
       
       toast({ title: "Brand created", description: `${b.name} has been created successfully.` });
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('[BrandStore] Create brand failed:', e);
-      toast({ title: "Brand save failed", description: e.message ?? "Unknown error", variant: "destructive" });
+      const errorMessage = e instanceof Error ? e.message : "Unknown error";
+      toast({ title: "Brand save failed", description: errorMessage, variant: "destructive" });
       throw e;
     }
   },
 
   refreshFromDb: async () => {
     const rows = await getBrands();
-    const list: Brand[] = rows.map((r: any) => ({
+    const list: Brand[] = rows.map((r: DatabaseBrandRow) => ({
       id: r.id,
       name: r.name,
       description: r.voice ?? '',

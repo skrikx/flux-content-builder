@@ -68,6 +68,18 @@ export class HuggingFaceImageProvider implements Provider {
   }
 }
 
+interface UnsplashPhoto {
+  urls: {
+    regular: string;
+  };
+  alt_description?: string;
+  user: {
+    name: string;
+  };
+  width: number;
+  height: number;
+}
+
 export class UnsplashProvider implements Provider {
   name = 'unsplash';
 
@@ -109,7 +121,7 @@ export class UnsplashProvider implements Provider {
 
       const data = await response.json();
       
-      return data.results?.map((photo: any) => ({
+      return data.results?.map((photo: UnsplashPhoto) => ({
         kind: 'img' as const,
         url: photo.urls.regular,
         prompt: input.prompt,

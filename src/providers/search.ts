@@ -7,6 +7,20 @@ export interface SearchOptions {
   source?: 'web' | 'news' | 'reddit';
 }
 
+interface TavilyResult {
+  url: string;
+  title: string;
+  content: string;
+}
+
+interface RedditPost {
+  data: {
+    permalink: string;
+    title: string;
+    selftext?: string;
+  };
+}
+
 export class TavilyProvider implements Provider {
   name = 'tavily';
 
@@ -63,7 +77,7 @@ export class TavilyProvider implements Provider {
 
       const data = await response.json();
       
-      return data.results?.map((result: any) => ({
+      return data.results?.map((result: TavilyResult) => ({
         url: result.url,
         title: result.title,
         source: 'web' as const,
@@ -137,7 +151,7 @@ export class RedditProvider implements Provider {
 
       const data = await response.json();
       
-      return data.data?.children?.map((post: any) => ({
+      return data.data?.children?.map((post: RedditPost) => ({
         url: `https://reddit.com${post.data.permalink}`,
         title: post.data.title,
         source: 'reddit' as const,

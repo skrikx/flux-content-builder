@@ -1,7 +1,12 @@
 import { supabase, SUPABASE_URL } from "@/integrations/supabase/client";
 
 type HTTPMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD';
-type InvokeOptions = { method?: HTTPMethod; params?: Record<string, string|number|boolean|undefined>; body?: any; headers?: Record<string, string>; };
+type InvokeOptions = { 
+  method?: HTTPMethod; 
+  params?: Record<string, string|number|boolean|undefined>; 
+  body?: Record<string, unknown>; 
+  headers?: Record<string, string>; 
+};
 
 export async function invokeWithAuth(name: string, options: InvokeOptions = {}) {
   const method: HTTPMethod = options.method || 'POST';
@@ -14,7 +19,12 @@ export async function invokeWithAuth(name: string, options: InvokeOptions = {}) 
   const headers: Record<string,string> = { 'Content-Type':'application/json', ...(options.headers||{}), ...(jwt?{Authorization:`Bearer ${jwt}`}:{}) };
 
   const res = await fetch(url, { method, headers, body: method==='GET'||method==='HEAD' ? undefined : JSON.stringify(options.body||{}) });
-  let data:any = null; try{ data = await res.json(); }catch{}
-  if(!res.ok){ return { data:null, error:{ message:(data && (data.error||data.message)) || res.statusText, status: res.status } }; }
+  let data: unknown = null; 
+  try { 
+    data = await res.json(); 
+  } catch (error) {
+    console.warn('Failed to parse JSON response:', error);
+  }
+  if(!res.ok){ return { data:null, error:{ message:(data && typeof data === 'object' && data !== null && ('error' in data ? String(data.error) : 'message' in data ? String(data.message) : '')) || res.statusText, status: res.status } }; }
   return { data, error:null };
 }

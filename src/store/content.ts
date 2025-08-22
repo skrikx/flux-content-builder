@@ -6,6 +6,17 @@ import { listSchedules, createSchedule } from '@/lib/schedule';
 import { batchGenerate } from '@/lib/generate';
 import { useProviderStore } from '@/store/providers';
 
+interface DatabaseSchedule {
+  id: string;
+  content_id: string;
+  publish_time: string;
+  platform: string;
+  status: string;
+  content?: {
+    brand_id?: string;
+  };
+}
+
 export const useContentStore = create<ContentState>()(
   persist(
     (set, get) => ({
@@ -44,7 +55,7 @@ export const useContentStore = create<ContentState>()(
       loadQueue: async () => {
         try {
           const schedules = await listSchedules();
-          const queueItems: QueueItem[] = schedules.map((schedule: any) => ({
+          const queueItems: QueueItem[] = schedules.map((schedule: DatabaseSchedule) => ({
             id: schedule.id,
             contentId: schedule.content_id,
             brandId: schedule.content?.brand_id || '',

@@ -6,20 +6,39 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+interface VideoFile {
+  quality?: string;
+  link?: string;
+}
+
+interface PexelsVideo {
+  video_files?: VideoFile[];
+  url?: string;
+}
+
+interface PixabayVideoSizes {
+  medium?: { url?: string };
+  large?: { url?: string };
+}
+
+interface PixabayVideo {
+  videos?: PixabayVideoSizes;
+}
+
 async function pexelsVideo(query: string, key: string) {
   const r = await fetch(`https://api.pexels.com/videos/search?query=${encodeURIComponent(query)}&per_page=1`, { headers: { 'Authorization': key } });
   const j = await r.json();
-  const v = j.videos?.[0];
+  const v = j.videos?.[0] as PexelsVideo;
   if (!v) return null;
   // Prefer 720p/HD file
-  const file = (v.video_files || []).find((f:any)=> f.quality==='hd') || v.video_files?.[0];
+  const file = (v.video_files || []).find((f: VideoFile)=> f.quality==='hd') || v.video_files?.[0];
   return file?.link || v.url || null;
 }
 
 async function pixabayVideo(query: string, key: string) {
   const r = await fetch(`https://pixabay.com/api/videos/?key=${encodeURIComponent(key)}&q=${encodeURIComponent(query)}&per_page=3`);
   const j = await r.json();
-  const v = j.hits?.[0];
+  const v = j.hits?.[0] as PixabayVideo;
   if (!v) return null;
   const file = v.videos?.medium?.url || v.videos?.large?.url;
   return file || null;
@@ -40,13 +59,21 @@ serve(async (req) => {
 
     const pexKey = Deno.env.get('PEXELS_API_KEY');
     if (pexKey) {
-      try { videoUrl = await pexelsVideo(topic, pexKey); } catch {}
+      try { 
+        videoUrl = await pexelsVideo(topic, pexKey); 
+      } catch (error) {
+        console.warn('Pexels video search failed:', error);
+      }
     }
 
     if (!videoUrl) {
       const pxbKey = Deno.env.get('PIXABAY_API_KEY');
       if (pxbKey) {
-        try { videoUrl = await pixabayVideo(topic, pxbKey); } catch {}
+        try { 
+          videoUrl = await pixabayVideo(topic, pxbKey); 
+        } catch (error) {
+          console.warn('Pixabay video search failed:', error);
+        }
       }
     }
 
