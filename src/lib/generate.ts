@@ -81,18 +81,38 @@ export async function genImages({ brand, ideas, count = 4 }:{brand:Brand;ideas:I
   return items;
 }
 
+type DatabaseBrandRow = {
+  id: string;
+  name: string;
+  voice?: string;
+  tone?: string;
+  style?: {
+    industry?: string;
+    audience?: string;
+    keywords?: string[];
+    colors?: string[];
+  };
+  assets?: {
+    website?: string;
+    logo?: string;
+    social?: Record<string, string>;
+  };
+  created_at: string;
+  updated_at?: string;
+};
+
 export async function batchGenerate(types: ('caption'|'post'|'blog'|'image'|'video')[], count: number, brandId: string, config: ProviderConfig): Promise<ContentItem[]> {
   assertBrandUUID(brandId);
   const startTime = Date.now();
   const allItems: ContentItem[] = [];
 
   try {
-    let brandRow: any = null;
+    let brandRow: DatabaseBrandRow | null = null;
     const { data: maybeSingle } = await invokeWithAuth('brands', { method:'GET', params:{ id: brandId } });
     if (maybeSingle && !Array.isArray(maybeSingle)) { brandRow = maybeSingle; }
     else {
       const { data: list } = await invokeWithAuth('brands', { method:'GET' });
-      brandRow = Array.isArray(list) ? list.find((b:any)=>b.id===brandId) : null;
+      brandRow = Array.isArray(list) ? list.find((b: DatabaseBrandRow) => b.id === brandId) : null;
     }
     if (!brandRow) throw new Error('Brand not found for generation');
 

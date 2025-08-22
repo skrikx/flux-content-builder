@@ -42,7 +42,7 @@ export interface AssetRef {
   url?: string;
   b64?: string;
   prompt?: string;
-  meta?: any;
+  meta?: Record<string, unknown>;
 }
 
 export interface Idea {
@@ -82,7 +82,7 @@ export interface ContentItem {
   personas?: string[];
   status: 'draft' | 'queued' | 'scheduled' | 'published';
   scheduledAt?: Date;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
   createdAt: Date;
 }
 
@@ -146,7 +146,7 @@ export interface Provider {
   name: string;
   isReady(cfg: ProviderConfig): boolean;
   test(cfg: ProviderConfig): Promise<ProviderTestResult>;
-  run(input: any, cfg: ProviderConfig): Promise<any>;
+  run(input: Record<string, unknown>, cfg: ProviderConfig): Promise<Record<string, unknown>>;
 }
 
 export interface ResearchPanel {
@@ -154,7 +154,7 @@ export interface ResearchPanel {
   title: string;
   type: 'trends' | 'competitors' | 'keywords';
   status: 'idle' | 'running' | 'completed' | 'error';
-  results?: any[];
+  results?: Record<string, unknown>[];
   lastRun?: Date;
 }
 
@@ -213,4 +213,25 @@ export interface ContentState {
   loadQueue: () => Promise<void>;
   generateContent: (types: string[], count: number, brandId: string) => Promise<ContentItem[]>;
   scheduleContent: (contentId: string, date: Date, platform: string) => Promise<void>;
+}
+
+// Database Types for API responses
+export interface DatabaseBrand {
+  id: string;
+  name: string;
+  voice?: string;
+  tone?: string;
+  style?: {
+    industry?: string;
+    audience?: string;
+    keywords?: string[];
+    colors?: string[];
+  };
+  assets?: {
+    website?: string;
+    logo?: string;
+    social?: Record<string, string>;
+  };
+  created_at: string;
+  updated_at?: string;
 }

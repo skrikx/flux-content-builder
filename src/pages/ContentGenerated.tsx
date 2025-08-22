@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
+import { ContentItem } from '@/types';
 
 export default function ContentGenerated() {
   const { items, loadContent } = useContentStore();
@@ -76,7 +77,7 @@ export default function ContentGenerated() {
     });
   };
 
-  const ContentCard = ({ item, type }: { item: any; type: string }) => {
+  const ContentCard = ({ item, type }: { item: ContentItem; type: string }) => {
     // Debug logging for images
     if (type === 'images') {
       console.log('Image item data:', item);
@@ -226,7 +227,7 @@ export default function ContentGenerated() {
     );
   };
 
-  const EmptyState = ({ type, icon: Icon }: { type: string; icon: any }) => (
+  const EmptyState = ({ type, icon: Icon }: { type: string; icon: React.ComponentType<{ className?: string }> }) => (
     <Card className="flux-card text-center py-12">
       <CardContent>
         <Icon className="w-12 h-12 text-muted-foreground mx-auto mb-4" />

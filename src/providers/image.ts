@@ -1,11 +1,27 @@
 import { Provider, ProviderConfig, ProviderTestResult, AssetRef } from '@/types';
-import { fetchWithRetry, normalizeError } from './util.http';
+import { fetchWithRetry, normalizeError } from '@/lib/utils';
 
 export interface ImageOptions {
   prompt: string;
   count?: number;
   size?: string;
 }
+
+type UnsplashPhoto = {
+  urls: {
+    regular: string;
+  };
+  alt_description?: string;
+  user: {
+    name: string;
+  };
+  width: number;
+  height: number;
+};
+
+type UnsplashResponse = {
+  results?: UnsplashPhoto[];
+};
 
 export class HuggingFaceImageProvider implements Provider {
   name = 'huggingface-image';
@@ -107,9 +123,9 @@ export class UnsplashProvider implements Provider {
         },
       });
 
-      const data = await response.json();
+      const data: UnsplashResponse = await response.json();
       
-      return data.results?.map((photo: any) => ({
+      return data.results?.map((photo: UnsplashPhoto) => ({
         kind: 'img' as const,
         url: photo.urls.regular,
         prompt: input.prompt,

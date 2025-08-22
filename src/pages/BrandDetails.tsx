@@ -91,8 +91,8 @@ export default function BrandDetails() {
           description: 'Your new brand profile has been created.',
         });
       }
-    } catch (error: any) {
-      const msg = error?.message || "Failed to save brand"
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "Failed to save brand"
       toast({
         title: 'Brand save failed',
         description: msg,

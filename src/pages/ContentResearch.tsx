@@ -19,8 +19,9 @@ export default function ContentResearchPage() {
     try {
       const results = await runResearch(query, sources);
       setIdeas(results);
-    } catch (e:any) {
-      alert(e.message || 'Research failed');
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'Research failed';
+      alert(message);
     } finally { setLoading(false); }
   }
 
@@ -31,8 +32,9 @@ export default function ContentResearchPage() {
     try {
       await batchGenerate(['caption','post','image','video'], count, activeBrand.id, providerConfig);
       alert('Generation triggered. Check the Generated tab.');
-    } catch (e:any) {
-      alert(e.message || 'Generation failed');
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'Generation failed';
+      alert(message);
     } finally { setGenLoading(false); }
   }
 

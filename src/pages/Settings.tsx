@@ -168,7 +168,7 @@ export default function Settings() {
                           <p className="text-sm text-muted-foreground">GPT models for text generation</p>
                         </div>
                       </div>
-                      <Badge variant={status.status as any} className="flex items-center gap-1">
+                      <Badge variant={status.status} className="flex items-center gap-1">
                         <StatusIcon className="w-3 h-3" />
                         {status.label}
                       </Badge>
@@ -210,7 +210,7 @@ export default function Settings() {
                           <p className="text-sm text-muted-foreground">Free LLM and image generation</p>
                         </div>
                       </div>
-                      <Badge variant={status.status as any} className="flex items-center gap-1">
+                      <Badge variant={status.status} className="flex items-center gap-1">
                         <StatusIcon className="w-3 h-3" />
                         {status.label}
                       </Badge>
@@ -252,7 +252,7 @@ export default function Settings() {
                           <p className="text-sm text-muted-foreground">AI-powered web search</p>
                         </div>
                       </div>
-                      <Badge variant={status.status as any} className="flex items-center gap-1">
+                      <Badge variant={status.status} className="flex items-center gap-1">
                         <StatusIcon className="w-3 h-3" />
                         {status.label}
                       </Badge>
@@ -294,7 +294,7 @@ export default function Settings() {
                           <p className="text-sm text-muted-foreground">High-quality stock photos</p>
                         </div>
                       </div>
-                      <Badge variant={status.status as any} className="flex items-center gap-1">
+                      <Badge variant={status.status} className="flex items-center gap-1">
                         <StatusIcon className="w-3 h-3" />
                         {status.label}
                       </Badge>

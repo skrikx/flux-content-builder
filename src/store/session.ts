@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Session } from '@supabase/supabase-js';
+import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { SessionState, UserSession } from '@/types';
 
@@ -72,8 +72,8 @@ export const useSessionStore = create<SessionState>()(
   )
 );
 
-function mapUser(s: { user: any } | Session | null): UserSession | null {
-  const u = (s as any)?.user;
+function mapUser(s: { user: User } | Session | null): UserSession | null {
+  const u = (s as { user: User })?.user;
   if (!u) return null;
   return {
     id: u.id,

@@ -19,7 +19,7 @@ serve(async (req) => {
     if (req.method === 'GET') {
       const url = new URL(req.url);
       const id = url.searchParams.get('id');
-      let query = supabase.from('brands').select('*').eq('user_id', user.id);
+      const query = supabase.from('brands').select('*').eq('user_id', user.id);
 
       if (id) {
         const { data, error } = await query.eq('id', id).single();
