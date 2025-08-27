@@ -109,6 +109,24 @@ export type Database = {
           },
         ]
       }
+      provider_keys: {
+        Row: {
+          keys: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          keys?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          keys?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       provider_prefs: {
         Row: {
           image_mode: string | null

@@ -1,347 +1,242 @@
-import { useState } from 'react';
-import { Key, TestTube, Shield, Bell, Palette, Globe, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
-
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
-import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { useProviderStore } from '@/store/providers';
-import { searchProviders } from '@/providers/search';
-import { llmProviders } from '@/providers/llm';
-import { imageProviders } from '@/providers/image';
+import { Check, X, Loader2, Eye, EyeOff } from 'lucide-react';
+import { getProviderKeys, saveProviderKeys, testProviderKey, type ProviderKeys } from '@/services/providerKeys';
 
 export default function Settings() {
-  const { toast } = useToast();
-  const { config, updateKeys, updateToggles, setTestResult, setUseProxy } = useProviderStore();
-  const [isTestingProvider, setIsTestingProvider] = useState<string | null>(null);
-
   const [notifications, setNotifications] = useState({
-    contentGenerated: true,
+    contentGeneration: true,
     scheduleReminders: true,
     weeklyReports: false,
     systemUpdates: true,
   });
 
-  const handleApiKeyChange = (key: string, value: string) => {
-    updateKeys({ [key]: value });
+  const [testingStatus, setTestingStatus] = useState<Record<string, 'idle' | 'testing' | 'success' | 'error'>>({});
+  const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({});
+  const [providerKeys, setProviderKeys] = useState<ProviderKeys>({});
+  const [loading, setLoading] = useState(true);
+
+  const { toast } = useToast();
+
+  // Load provider keys from database on mount
+  useEffect(() => {
+    const loadKeys = async () => {
+      try {
+        const keys = await getProviderKeys();
+        setProviderKeys(keys);
+      } catch (error) {
+        console.error('Failed to load provider keys:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load API keys",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadKeys();
+  }, [toast]);
+
+  const handleApiKeyChange = (provider: string, value: string) => {
+    setProviderKeys(prev => ({ ...prev, [provider]: value }));
   };
 
-  const testProvider = async (providerKey: string, providerName: string) => {
-    setIsTestingProvider(providerKey);
-    
-    toast({
-      title: 'Testing connection...',
-      description: `Testing ${providerName} API connection.`,
-    });
+  const testProvider = async (provider: string) => {
+    const apiKey = providerKeys[provider as keyof ProviderKeys];
+    if (!apiKey) {
+      toast({
+        title: "Error",
+        description: "Please enter an API key first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setTestingStatus(prev => ({ ...prev, [provider]: 'testing' }));
 
     try {
-      const apiKey = config.keys[providerKey as keyof typeof config.keys];
-      if (!apiKey) {
-        throw new Error('API key not provided');
-      }
-
-      // Test the API key and optionally save to Supabase
-      const { testApiKey, saveSecretToSupabase } = await import('@/lib/supabase-secrets');
-      const result = await testApiKey(providerKey === 'hf' ? 'huggingface' : providerKey, apiKey);
-      
-      // Save to store
-      setTestResult(providerKey, { ...result, at: new Date().toISOString() });
-      
-      // If test successful, save to Supabase secrets
-      if (result.ok) {
-        await saveSecretToSupabase(providerKey, apiKey);
-      }
+      const result = await testProviderKey(provider, apiKey);
+      const status = result.ok ? 'success' : 'error';
+      setTestingStatus(prev => ({ ...prev, [provider]: status }));
 
       toast({
-        title: result.ok ? 'Connection successful' : 'Connection failed',
+        title: result.ok ? "Success" : "Error",
         description: result.message,
-        variant: result.ok ? 'default' : 'destructive',
+        variant: result.ok ? "default" : "destructive",
       });
     } catch (error) {
-      const result = { ok: false, message: 'Test failed', at: new Date().toISOString() };
-      setTestResult(providerKey, result);
-      
+      setTestingStatus(prev => ({ ...prev, [provider]: 'error' }));
       toast({
-        title: 'Connection failed',
-        description: error instanceof Error ? error.message : 'Unable to test provider connection.',
-        variant: 'destructive',
+        title: "Error",
+        description: "Failed to test API key",
+        variant: "destructive",
       });
-    } finally {
-      setIsTestingProvider(null);
     }
   };
 
-  const getProviderStatus = (providerKey: string) => {
-    const hasKey = !!config.keys[providerKey as keyof typeof config.keys];
-    const testResult = config.lastTest?.[providerKey];
-    
-    if (!hasKey) {
-      return { status: 'warning', label: 'No API Key', icon: AlertCircle };
+  const getProviderStatus = (provider: string) => {
+    const currentStatus = testingStatus[provider];
+
+    if (currentStatus === 'testing') {
+      return { icon: <Loader2 className="w-4 h-4 animate-spin" />, color: 'text-muted-foreground' };
     }
     
-    if (!testResult) {
-      return { status: 'secondary', label: 'Not Tested', icon: AlertCircle };
+    if (currentStatus === 'success') {
+      return { icon: <Check className="w-4 h-4" />, color: 'text-success' };
     }
     
-    if (testResult.ok) {
-      return { status: 'success', label: 'Connected', icon: CheckCircle };
+    if (currentStatus === 'error') {
+      return { icon: <X className="w-4 h-4" />, color: 'text-destructive' };
     }
-    
-    return { status: 'destructive', label: 'Failed', icon: XCircle };
+
+    return { icon: null, color: '' };
   };
 
-  const saveSettings = () => {
-    toast({
-      title: 'Settings saved',
-      description: 'Your preferences have been updated successfully.',
-    });
+  const saveSettings = async () => {
+    try {
+      const success = await saveProviderKeys(providerKeys);
+      if (success) {
+        toast({
+          title: "Settings saved",
+          description: "Your API keys have been saved successfully.",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to save settings. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to save settings. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold mb-2">Settings</h1>
         <p className="text-muted-foreground">
-          Configure your FluxContent experience and integrations.
+          Configure your API keys and preferences for FluxContent.
         </p>
       </div>
 
       <Tabs defaultValue="providers" className="space-y-4">
         <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="providers" className="flex items-center gap-2">
-            <Key className="w-4 h-4" />
-            Providers
-          </TabsTrigger>
-          <TabsTrigger value="notifications" className="flex items-center gap-2">
-            <Bell className="w-4 h-4" />
-            Notifications
-          </TabsTrigger>
-          <TabsTrigger value="features" className="flex items-center gap-2">
-            <TestTube className="w-4 h-4" />
-            Features
-          </TabsTrigger>
-          <TabsTrigger value="security" className="flex items-center gap-2">
-            <Shield className="w-4 h-4" />
-            Security
-          </TabsTrigger>
+          <TabsTrigger value="providers">Providers</TabsTrigger>
+          <TabsTrigger value="notifications">Notifications</TabsTrigger>
+          <TabsTrigger value="features">Features</TabsTrigger>
+          <TabsTrigger value="security">Security</TabsTrigger>
         </TabsList>
 
-        {/* API Providers */}
         <TabsContent value="providers" className="space-y-6">
-          <Card className="flux-panel">
+          <Card>
             <CardHeader>
-              <CardTitle>AI Provider Configuration</CardTitle>
+              <CardTitle>API Provider Configuration</CardTitle>
               <CardDescription>
-                Connect your AI service providers to enable content generation
+                Configure your API keys for content generation providers. Keys are stored securely and used per-user.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Use Proxy Toggle */}
-              <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/50">
-                <div>
-                  <Label className="font-medium">Use Proxy Server</Label>
-                  <p className="text-sm text-muted-foreground">Route requests through proxy to avoid CORS issues</p>
-                </div>
-                <Switch
-                  checked={config.useProxy}
-                  onCheckedChange={setUseProxy}
-                />
-              </div>
-
-              {/* OpenAI/GPT */}
-              {(() => {
-                const status = getProviderStatus('openai');
-                const StatusIcon = status.icon;
+              {[
+                { key: 'openai', label: 'OpenAI API Key', placeholder: 'sk-...', description: 'For GPT models and image generation' },
+                { key: 'huggingface', label: 'HuggingFace Token', placeholder: 'hf_...', description: 'For open-source AI models' },
+                { key: 'replicate', label: 'Replicate API Token', placeholder: 'r8_...', description: 'For AI video generation' },
+                { key: 'unsplash', label: 'Unsplash Access Key', placeholder: 'Access Key', description: 'For high-quality stock images' },
+                { key: 'pexels', label: 'Pexels API Key', placeholder: 'Pexels Key', description: 'For stock videos and photos' },
+                { key: 'pixabay', label: 'Pixabay API Key', placeholder: 'Pixabay Key', description: 'For free stock videos and images' },
+              ].map(({ key, label, placeholder, description }) => {
+                const status = getProviderStatus(key);
                 return (
-                  <div className="space-y-3">
+                  <div key={key} className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded bg-gradient-to-r from-green-500 to-emerald-600 flex items-center justify-center">
-                          <span className="text-white text-xs font-bold">AI</span>
-                        </div>
-                        <div>
-                          <Label className="font-medium">OpenAI</Label>
-                          <p className="text-sm text-muted-foreground">GPT models for text generation</p>
-                        </div>
+                      <Label htmlFor={key}>{label}</Label>
+                      <div className="flex items-center space-x-2">
+                        {status.icon && (
+                          <span className={status.color}>
+                            {status.icon}
+                          </span>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => testProvider(key)}
+                          disabled={testingStatus[key] === 'testing'}
+                        >
+                          Test
+                        </Button>
                       </div>
-                      <Badge variant={status.status as any} className="flex items-center gap-1">
-                        <StatusIcon className="w-3 h-3" />
-                        {status.label}
-                      </Badge>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="relative">
                       <Input
-                        type="password"
-                        placeholder="sk-..."
-                        value={config.keys.openai || ''}
-                        onChange={(e) => handleApiKeyChange('openai', e.target.value)}
-                        className="flex-1"
+                        id={key}
+                        type={showPasswords[key] ? "text" : "password"}
+                        placeholder={placeholder}
+                        value={providerKeys[key as keyof ProviderKeys] || ''}
+                        onChange={(e) => handleApiKeyChange(key, e.target.value)}
+                        className="pr-10"
                       />
                       <Button
-                        variant="outline"
-                        onClick={() => testProvider('openai', 'OpenAI')}
-                        disabled={isTestingProvider === 'openai'}
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                        onClick={() => setShowPasswords(prev => ({ ...prev, [key]: !prev[key] }))}
                       >
-                        <TestTube className="w-4 h-4 mr-2" />
-                        Test
+                        {showPasswords[key] ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
                       </Button>
                     </div>
+                    <p className="text-sm text-muted-foreground">{description}</p>
                   </div>
                 );
-              })()}
-
-              {/* HuggingFace */}
-              {(() => {
-                const status = getProviderStatus('hf');
-                const StatusIcon = status.icon;
-                return (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded bg-gradient-to-r from-yellow-500 to-orange-500 flex items-center justify-center">
-                          <span className="text-white text-xs font-bold">HF</span>
-                        </div>
-                        <div>
-                          <Label className="font-medium">HuggingFace</Label>
-                          <p className="text-sm text-muted-foreground">Free LLM and image generation</p>
-                        </div>
-                      </div>
-                      <Badge variant={status.status as any} className="flex items-center gap-1">
-                        <StatusIcon className="w-3 h-3" />
-                        {status.label}
-                      </Badge>
-                    </div>
-                    <div className="flex gap-2">
-                      <Input
-                        type="password"
-                        placeholder="hf_..."
-                        value={config.keys.hf || ''}
-                        onChange={(e) => handleApiKeyChange('hf', e.target.value)}
-                        className="flex-1"
-                      />
-                      <Button
-                        variant="outline"
-                        onClick={() => testProvider('hf', 'HuggingFace')}
-                        disabled={isTestingProvider === 'hf'}
-                      >
-                        <TestTube className="w-4 h-4 mr-2" />
-                        Test
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* Tavily Search */}
-              {(() => {
-                const status = getProviderStatus('tavily');
-                const StatusIcon = status.icon;
-                return (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded bg-gradient-to-r from-green-500 to-teal-500 flex items-center justify-center">
-                          <span className="text-white text-xs font-bold">T</span>
-                        </div>
-                        <div>
-                          <Label className="font-medium">Tavily Search</Label>
-                          <p className="text-sm text-muted-foreground">AI-powered web search</p>
-                        </div>
-                      </div>
-                      <Badge variant={status.status as any} className="flex items-center gap-1">
-                        <StatusIcon className="w-3 h-3" />
-                        {status.label}
-                      </Badge>
-                    </div>
-                    <div className="flex gap-2">
-                      <Input
-                        type="password"
-                        placeholder="tvly-..."
-                        value={config.keys.tavily || ''}
-                        onChange={(e) => handleApiKeyChange('tavily', e.target.value)}
-                        className="flex-1"
-                      />
-                      <Button
-                        variant="outline"
-                        onClick={() => testProvider('tavily', 'Tavily')}
-                        disabled={isTestingProvider === 'tavily'}
-                      >
-                        <TestTube className="w-4 h-4 mr-2" />
-                        Test
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* Unsplash */}
-              {(() => {
-                const status = getProviderStatus('unsplash');
-                const StatusIcon = status.icon;
-                return (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded bg-gradient-to-r from-gray-600 to-gray-800 flex items-center justify-center">
-                          <span className="text-white text-xs font-bold">U</span>
-                        </div>
-                        <div>
-                          <Label className="font-medium">Unsplash</Label>
-                          <p className="text-sm text-muted-foreground">High-quality stock photos</p>
-                        </div>
-                      </div>
-                      <Badge variant={status.status as any} className="flex items-center gap-1">
-                        <StatusIcon className="w-3 h-3" />
-                        {status.label}
-                      </Badge>
-                    </div>
-                    <div className="flex gap-2">
-                      <Input
-                        type="password"
-                        placeholder="Client-ID..."
-                        value={config.keys.unsplash || ''}
-                        onChange={(e) => handleApiKeyChange('unsplash', e.target.value)}
-                        className="flex-1"
-                      />
-                      <Button
-                        variant="outline"
-                        onClick={() => testProvider('unsplash', 'Unsplash')}
-                        disabled={isTestingProvider === 'unsplash'}
-                      >
-                        <TestTube className="w-4 h-4 mr-2" />
-                        Test
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })()}
+              })}
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* Notifications */}
         <TabsContent value="notifications" className="space-y-6">
-          <Card className="flux-panel">
+          <Card>
             <CardHeader>
               <CardTitle>Notification Preferences</CardTitle>
               <CardDescription>
-                Choose how and when you want to be notified
+                Choose how and when you want to be notified about your content.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <Label className="font-medium">Content Generated</Label>
-                  <p className="text-sm text-muted-foreground">Get notified when AI finishes generating content</p>
+                  <Label className="font-medium">Content Generation</Label>
+                  <p className="text-sm text-muted-foreground">Get notified when content generation completes</p>
                 </div>
                 <Switch
-                  checked={notifications.contentGenerated}
+                  checked={notifications.contentGeneration}
                   onCheckedChange={(checked) => 
-                    setNotifications(prev => ({ ...prev, contentGenerated: checked }))
+                    setNotifications(prev => ({ ...prev, contentGeneration: checked }))
                   }
                 />
               </div>
@@ -388,93 +283,73 @@ export default function Settings() {
           </Card>
         </TabsContent>
 
-        {/* Features */}
         <TabsContent value="features" className="space-y-6">
-          <Card className="flux-panel">
+          <Card>
             <CardHeader>
               <CardTitle>Feature Flags</CardTitle>
               <CardDescription>
-                Enable or disable experimental and advanced features
+                Enable or disable experimental and advanced features.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label className="font-medium">Use Premium Providers</Label>
-                  <p className="text-sm text-muted-foreground">Prefer paid providers when available for better quality</p>
-                </div>
-                <Switch
-                  checked={config.toggles.usePremium}
-                  onCheckedChange={(checked) => 
-                    updateToggles({ usePremium: checked })
-                  }
-                />
-              </div>
-
               <div className="flex items-center justify-between">
                 <div>
                   <Label className="font-medium">Auto-Scheduling</Label>
                   <p className="text-sm text-muted-foreground">Automatically schedule content at optimal times</p>
                 </div>
-                <Switch
-                  checked={config.toggles.autoSchedule}
-                  onCheckedChange={(checked) => 
-                    updateToggles({ autoSchedule: checked })
-                  }
-                />
+                <Switch defaultChecked />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="font-medium">Advanced Analytics</Label>
+                  <p className="text-sm text-muted-foreground">Enable detailed content performance analytics</p>
+                </div>
+                <Switch />
               </div>
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* Security */}
         <TabsContent value="security" className="space-y-6">
-          <Card className="flux-panel">
+          <Card>
             <CardHeader>
               <CardTitle>Security Settings</CardTitle>
               <CardDescription>
-                Manage your account security and privacy
+                Manage your account security and data protection settings.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="font-medium">Two-Factor Authentication</Label>
+                  <p className="text-sm text-muted-foreground">Add an extra layer of security to your account</p>
+                </div>
+                <Button variant="outline" disabled>Enable 2FA</Button>
+              </div>
+
+              <Separator />
+
               <div>
                 <Label className="font-medium">Change Password</Label>
                 <p className="text-sm text-muted-foreground mb-3">Update your account password</p>
-                <div className="space-y-3">
-                  <Input type="password" placeholder="Current password" />
-                  <Input type="password" placeholder="New password" />
-                  <Input type="password" placeholder="Confirm new password" />
-                  <Button variant="outline" disabled>
-                    Update Password
-                  </Button>
-                </div>
+                <Button variant="outline" disabled>Change Password</Button>
               </div>
 
-              <div>
-                <Label className="font-medium">Two-Factor Authentication</Label>
-                <p className="text-sm text-muted-foreground mb-3">Add an extra layer of security to your account</p>
-                <Button variant="outline" disabled>
-                  <Shield className="w-4 h-4 mr-2" />
-                  Enable 2FA
-                </Button>
-              </div>
+              <Separator />
 
               <div>
-                <Label className="font-medium">Data Export</Label>
-                <p className="text-sm text-muted-foreground mb-3">Download all your content and data</p>
-                <Button variant="outline" disabled>
-                  <Globe className="w-4 h-4 mr-2" />
-                  Export Data
-                </Button>
+                <Label className="font-medium">Export Data</Label>
+                <p className="text-sm text-muted-foreground mb-3">Download a copy of your data</p>
+                <Button variant="outline" disabled>Export Data</Button>
               </div>
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
 
-      {/* Save Button */}
       <div className="flex justify-end">
-        <Button onClick={saveSettings} size="lg" className="flux-gradient-bg text-white hover:opacity-90 flux-transition">
+        <Button onClick={saveSettings} size="lg">
           Save Settings
         </Button>
       </div>

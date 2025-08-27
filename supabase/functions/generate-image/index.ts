@@ -3,21 +3,61 @@ import { HfInference } from 'https://esm.sh/@huggingface/inference@2.3.2';
 import { extractToken, supabaseAuthed, getUserFromToken } from "../_auth_util.ts";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': Deno.env.get('ALLOWED_ORIGINS') || '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-async function uploadToStorage(supabase: any, userId: string, url: string) {
+async function resolveKeys(supabase: any, userId: string) {
+  const { data } = await supabase
+    .from('provider_keys')
+    .select('keys')
+    .eq('user_id', userId)
+    .single();
+  
+  const userKeys = data?.keys || {};
+  
+  return {
+    openai: userKeys.openai || Deno.env.get('OPENAI_API_KEY'),
+    huggingface: userKeys.huggingface || Deno.env.get('HUGGING_FACE_ACCESS_TOKEN'),
+    unsplash: userKeys.unsplash || Deno.env.get('UNSPLASH_ACCESS_KEY'),
+  };
+}
+
+async function uploadToStorage(supabase: any, userId: string, imageData: string, isBase64: boolean = false): Promise<string> {
   try {
-    const res = await fetch(url);
-    const buf = new Uint8Array(await res.arrayBuffer());
-    const filename = `gen/${userId}/${crypto.randomUUID()}.jpg`;
-    const { error } = await supabase.storage.from('content-assets').upload(filename, buf, { contentType: 'image/jpeg', upsert: true });
+    let blob: Blob;
+    if (isBase64) {
+      // Convert base64 to blob
+      const base64Data = imageData.split(',')[1];
+      const byteCharacters = atob(base64Data);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      blob = new Blob([byteArray], { type: 'image/png' });
+    } else {
+      // Fetch from URL
+      const response = await fetch(imageData);
+      blob = await response.blob();
+    }
+    
+    const fileName = `gen/${userId}/images/${Date.now()}.png`;
+    
+    const { data, error } = await supabase.storage
+      .from('content-assets')
+      .upload(fileName, blob);
+    
     if (error) throw error;
-    const { data: publicUrl } = await supabase.storage.from('content-assets').getPublicUrl(filename);
-    return publicUrl.publicUrl;
-  } catch {
-    return url; // fallback to external URL
+    
+    const { data: { publicUrl } } = supabase.storage
+      .from('content-assets')
+      .getPublicUrl(fileName);
+    
+    return publicUrl;
+  } catch (error) {
+    console.error('Storage upload failed:', error);
+    return imageData; // Fallback to original
   }
 }
 
@@ -27,27 +67,38 @@ serve(async (req) => {
   try {
     const token = extractToken(req);
     const { data: { user } } = await getUserFromToken(token);
-    if (!user) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    if (!user) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     const supabase = supabaseAuthed(token);
-    const body = await req.json().catch(()=>({}));
-    const prompt: string = body?.prompt || 'brand image';
+    const { prompt, brand_id } = await req.json();
+    
+    if (!prompt) {
+      return new Response(
+        JSON.stringify({ error: 'Prompt is required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
+    // Resolve API keys with per-user priority
+    const keys = await resolveKeys(supabase, user.id);
+    
     let imageUrl: string | null = null;
-    let imageBase64: string | null = null;
+    let provider = 'none';
 
-    // 1) Hugging Face (free tier - preferred)
-    const hfToken = Deno.env.get('HUGGING_FACE_ACCESS_TOKEN');
-    if (hfToken) {
+    // Try Hugging Face first if key available
+    if (keys.huggingface) {
       try {
-        console.log('Generating image with Hugging Face...');
-        const hf = new HfInference(hfToken);
+        const hf = new HfInference(keys.huggingface);
         const image = await hf.textToImage({
           inputs: prompt,
           model: 'black-forest-labs/FLUX.1-schnell',
         });
         
-        // Convert blob to base64 safely
         const arrayBuffer = await image.arrayBuffer();
         const uint8Array = new Uint8Array(arrayBuffer);
         const chunks = [];
@@ -55,52 +106,129 @@ serve(async (req) => {
           chunks.push(String.fromCharCode.apply(null, Array.from(uint8Array.subarray(i, i + 8192))));
         }
         const base64 = btoa(chunks.join(''));
-        imageBase64 = `data:image/png;base64,${base64}`;
-        console.log('Successfully generated image with Hugging Face');
+        imageUrl = `data:image/png;base64,${base64}`;
+        provider = 'huggingface';
       } catch (error) {
-        console.log('Hugging Face generation failed:', error);
+        console.log('HuggingFace failed:', error.message);
       }
     }
 
-    // 2) OpenAI (premium fallback)
-    if (!imageBase64 && !imageUrl) {
-      const openaiKey = Deno.env.get('OPENAI_API_KEY');
-      if (openaiKey) {
-        try {
-          const r = await fetch('https://api.openai.com/v1/images/generations', {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${openaiKey}`, 'Content-Type':'application/json' },
-            body: JSON.stringify({ prompt, n: 1, size: '1024x1024' })
-          });
-          const j = await r.json();
-          imageUrl = j.data?.[0]?.url || null;
-        } catch {}
-      }
-    }
-
-    // 3) Lexica (no key) search fallback  
-    if (!imageBase64 && !imageUrl) {
+    // Fallback to OpenAI if HF failed
+    if (!imageUrl && keys.openai) {
       try {
-        const r = await fetch(`https://lexica.art/api/v1/search?q=${encodeURIComponent(prompt)}`);
-        const j = await r.json();
-        const hit = (j.images || [])[0];
-        imageUrl = hit?.src || hit?.imageUrls?.[0] || null;
-      } catch {}
+        const response = await fetch('https://api.openai.com/v1/images/generations', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${keys.openai}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'gpt-image-1',
+            prompt: prompt,
+            n: 1,
+            size: '1024x1024',
+            quality: 'auto',
+            output_format: 'png'
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          imageUrl = data.data[0].b64_json ? `data:image/png;base64,${data.data[0].b64_json}` : data.data[0].url;
+          provider = 'openai';
+        }
+      } catch (error) {
+        console.log('OpenAI failed:', error.message);
+      }
     }
 
-    if (!imageBase64 && !imageUrl) return new Response(JSON.stringify({ error: 'Image generation not available' }), { status: 400, headers: { ...corsHeaders, 'Content-Type':'application/json' } });
-
-    let finalUrl = imageBase64 || imageUrl;
-    
-    // Only try to upload external URLs to storage, not base64 images
-    if (imageUrl && !imageBase64) {
-      try { finalUrl = await uploadToStorage(supabase, user.id, imageUrl); } catch {}
+    // Fallback to Unsplash search if available
+    if (!imageUrl && keys.unsplash) {
+      try {
+        const searchResponse = await fetch(`https://api.unsplash.com/search/photos?query=${encodeURIComponent(prompt)}&per_page=1`, {
+          headers: { 'Authorization': `Client-ID ${keys.unsplash}` }
+        });
+        if (searchResponse.ok) {
+          const searchData = await searchResponse.json();
+          if (searchData.results && searchData.results.length > 0) {
+            imageUrl = searchData.results[0].urls.regular;
+            provider = 'unsplash';
+          }
+        }
+      } catch (error) {
+        console.log('Unsplash search failed:', error.message);
+      }
     }
 
-    const payload = { id: crypto.randomUUID(), title: `Image for: ${prompt.slice(0,80)}`, created_at: new Date().toISOString(), data: { url: finalUrl } };
-    return new Response(JSON.stringify(payload), { headers: { ...corsHeaders, 'Content-Type':'application/json' } });
-  } catch (e) {
-    console.error('generate-image() error', e);
-    return new Response(JSON.stringify({ error: 'Internal server error' }), { status: 500, headers: { ...corsHeaders, 'Content-Type':'application/json' } });
+    // Final fallback to Lexica search (no key required)
+    if (!imageUrl) {
+      try {
+        const searchResponse = await fetch(`https://lexica.art/api/v1/search?q=${encodeURIComponent(prompt)}`);
+        if (searchResponse.ok) {
+          const searchData = await searchResponse.json();
+          if (searchData.images && searchData.images.length > 0) {
+            imageUrl = searchData.images[0].src;
+            provider = 'lexica';
+          }
+        }
+      } catch (error) {
+        console.log('Lexica search failed:', error.message);
+      }
+    }
+
+    if (!imageUrl) {
+      return new Response(
+        JSON.stringify({ error: 'Failed to generate image with all providers' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Upload to storage if it's from AI providers
+    let finalUrl = imageUrl;
+    if (provider === 'huggingface' || provider === 'openai') {
+      finalUrl = await uploadToStorage(supabase, user.id, imageUrl, true);
+    } else if (provider === 'unsplash') {
+      finalUrl = await uploadToStorage(supabase, user.id, imageUrl, false);
+    }
+
+    // Create content record
+    const contentId = crypto.randomUUID();
+    const { error: insertError } = await supabase
+      .from('content')
+      .insert({
+        id: contentId,
+        user_id: user.id,
+        brand_id: brand_id || crypto.randomUUID(),
+        type: 'image',
+        title: `Generated: ${prompt.slice(0, 50)}...`,
+        data: { url: finalUrl, prompt, provider },
+        status: 'ready'
+      });
+
+    if (insertError) {
+      console.error('Failed to save content:', insertError);
+    }
+
+    const result = {
+      ok: true,
+      provider,
+      id: contentId,
+      title: `Generated: ${prompt.slice(0, 50)}...`,
+      created_at: new Date().toISOString(),
+      data: { url: finalUrl, prompt, provider },
+      meta: { size: '1024x1024', format: 'PNG' }
+    };
+
+    return new Response(
+      JSON.stringify(result),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+
+  } catch (error) {
+    console.error('Error in generate-image:', error);
+    return new Response(
+      JSON.stringify({ error: 'Internal server error' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   }
 });

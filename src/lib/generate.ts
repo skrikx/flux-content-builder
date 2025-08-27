@@ -14,12 +14,12 @@ async function generateText(brandId: string, topic: string, kind: 'caption'|'pos
   return data;
 }
 async function generateImage(brandId: string, prompt: string, mode = 'free') {
-  const { data, error } = await invokeWithAuth('generate-image', { method:'POST', body:{ brand_id: brandId, mode, prompt } });
+  const { data, error } = await invokeWithAuth('generate-image', { method:'POST', body:{ brand_id: brandId, prompt } });
   if (error) throw new Error(error.message);
   return data;
 }
 async function generateVideo(brandId: string, script: string, mode = 'free') {
-  const { data, error } = await invokeWithAuth('generate-video', { method:'POST', body:{ brand_id: brandId, mode, script } });
+  const { data, error } = await invokeWithAuth('generate-video', { method:'POST', body:{ brand_id: brandId, script } });
   if (error) throw new Error(error.message);
   return data;
 }
