@@ -74,28 +74,36 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
     return null
   }
 
-  return (
-    <style
-      dangerouslySetInnerHTML={{
-        __html: Object.entries(THEMES)
-          .map(
-            ([theme, prefix]) => `
-${prefix} [data-chart=${id}] {
-${colorConfig
-  .map(([key, itemConfig]) => {
-    const color =
-      itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ||
-      itemConfig.color
-    return color ? `  --color-${key}: ${color};` : null
-  })
-  .join("\n")}
-}
-`
-          )
-          .join("\n"),
-      }}
-    />
-  )
+  // Create CSS custom properties object for safe injection
+  const cssVariables = React.useMemo(() => {
+    const variables: Record<string, string> = {}
+    
+    Object.entries(THEMES).forEach(([theme, prefix]) => {
+      colorConfig.forEach(([key, itemConfig]) => {
+        const color =
+          itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ||
+          itemConfig.color
+        if (color) {
+          const varName = `--color-${key}${theme === 'dark' ? '-dark' : ''}`
+          variables[varName] = color
+        }
+      })
+    })
+    
+    return variables
+  }, [colorConfig])
+
+  // Apply styles using React's style prop for security
+  React.useEffect(() => {
+    const chartElement = document.querySelector(`[data-chart="${id}"]`) as HTMLElement
+    if (chartElement) {
+      Object.entries(cssVariables).forEach(([property, value]) => {
+        chartElement.style.setProperty(property, value)
+      })
+    }
+  }, [id, cssVariables])
+
+  return null
 }
 
 const ChartTooltip = RechartsPrimitive.Tooltip
