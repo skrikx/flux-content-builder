@@ -274,6 +274,24 @@ export type Database = {
         }
         Relationships: []
       }
+      provider_keys_compact: {
+        Row: {
+          keys: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          keys?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          keys?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       provider_prefs: {
         Row: {
           image_mode: string | null
@@ -403,13 +421,7 @@ export type Database = {
       }
     }
     Views: {
-      provider_keys_compact: {
-        Row: {
-          keys: Json | null
-          user_id: string | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
       binary_quantize: {
